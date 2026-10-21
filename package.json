@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json.schemastore.org/package",
+  "name": "update-codeblocks",
+  "version": "0.1.0",
+  "description": "Regenerate markdown code blocks from the output of shell commands declared in HTML comments",
+  "author": "ndonfris",
+  "license": "MIT",
+  "keywords": [
+    "markdown",
+    "docs",
+    "codeblock",
+    "readme",
+    "generate"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ndonfris/fish-lsp.git",
+    "directory": "packages/update-codeblocks"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "bin": {
+    "update-codeblocks": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./schema.json": "./update-codeblocks.schema.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "update-codeblocks.schema.json",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/cli.ts",
+    "test": "tsx --test tests/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepublishOnly": "yarn build && yarn test"
+  },
+  "dependencies": {
+    "fast-glob": "^3.3.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.23.1",
+    "typescript": "^5.9.3"
+  }
+}

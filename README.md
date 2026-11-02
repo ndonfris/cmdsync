@@ -314,10 +314,7 @@ The allowlist protects against typos and against commands you didn't expect to s
 
 ### Installing binaries
 
-`install` maps a binary name to the shell command that installs it. Before a
-directive runs, each binary it uses that has an `install` entry and isn't on
-`PATH` is installed. Each install runs at most once per run, with the same
-`shell`, `cwd` and `env` as directives, and a 10 minute timeout.
+`install` maps a binary name to the shell command that installs it. Before a directive runs, each binary it uses that has an `install` entry and isn't on `PATH` is installed. Each install runs at most once per run, with the same `shell`, `cwd` and `env` as directives, and a 10 minute timeout.
 
 ```json
 {
@@ -331,14 +328,12 @@ directive runs, each binary it uses that has an `install` entry and isn't on
 }
 ```
 
-- If an install fails, or succeeds without putting the binary on `PATH`, every
-  directive that uses that binary fails and keeps its old content.
-- `--install` runs the install for every binary a directive uses, even ones already
-  on `PATH`. Use it to pin a version in CI.
+- If an install fails, or succeeds without putting the binary on `PATH`, every directive that uses that binary fails and keeps its old content.
+- `--install` runs the install for every binary a directive uses, even ones already on `PATH`. Use it to pin a version in CI.
 - `--no-install` never installs anything.
-- Binaries are matched the same way as [`commands`](#recognized-commands): the first
-  word of each pipeline/list segment, by basename.
+- Binaries are matched the same way as [`commands`](#recognized-commands): the first word of each pipeline/list segment, by basename.
 
+## GitHub Actions
 
 When `GITHUB_ACTIONS=true`, the CLI also:
 

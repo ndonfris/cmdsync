@@ -1,20 +1,31 @@
 /**
- * Pure text transforms: find `<!-- MARKER: command -->` directives (in any
- * comment syntax) and replace the region they delimit with the command's output.
+ * Pure text transforms: find `<!-- MARKER [mode] [key=value ...]: command -->`
+ * directives (in any comment syntax) and replace what they point at with the
+ * command's output.
  *
- *   block      `<!-- MARKER: cmd -->` ... lines ... `<!-- /MARKER -->`
+ *   region     `<!-- MARKER region: cmd -->` ... lines ... `<!-- /MARKER -->`
+ *   line       `<!-- MARKER line: cmd -->` then the single line it replaces
+ *   codeblock  `<!-- MARKER codeblock: cmd -->` then a fenced code block (markdown only)
  *   inline     `<!-- MARKER: cmd -->text<!-- /MARKER -->` on one line
- *   codeblock  `<!-- MARKER: cmd -->` followed by a fenced code block (markdown only)
+ *
+ * Without a mode, a markdown directive followed by a fenced code block is a
+ * codeblock, one with its end marker on the same line is inline, and anything
+ * else is a region.
  */
 import { type Format, formatOutput, isFormat } from './format.js';
 import type { RegionSyntax } from './syntax.js';
+
+export const MODES = ['region', 'line', 'codeblock'] as const;
+export type Mode = typeof MODES[number];
+
+const isMode = (value: string): value is Mode => (MODES as readonly string[]).includes(value);
 
 export interface Directive {
   /** 0-based line index of the start comment */
   line: number;
   command: string;
-  /** `MARKER[key=value,...]: command` */
-  options: { format?: Format; };
+  /** `MARKER mode key=value ...: command` */
+  options: { mode?: Mode; format?: Format; };
 }
 
 export interface CommandResult {
@@ -34,7 +45,7 @@ const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const closeOrEol = (syntax: RegionSyntax) => syntax.close ? escapeRegExp(syntax.close) : '$';
 
 export const startPattern = (syntax: RegionSyntax) =>
-  new RegExp(`${escapeRegExp(syntax.open)}\\s*${escapeRegExp(syntax.marker)}(?:\\[([^\\]]*)\\])?:\\s*(.+?)\\s*${closeOrEol(syntax)}`, 'g');
+  new RegExp(`${escapeRegExp(syntax.open)}\\s*${escapeRegExp(syntax.marker)}(?:\\s+([^:]*?))?\\s*:\\s*(.+?)\\s*${closeOrEol(syntax)}`, 'g');
 
 export const endPattern = (syntax: RegionSyntax) =>
   new RegExp(`${escapeRegExp(syntax.open)}\\s*${escapeRegExp(syntax.endMarker)}\\s*${closeOrEol(syntax)}`);
@@ -57,11 +68,18 @@ const closingFence = (lines: string[], open: number, fence: string) => {
 const codeSpans = (line: string) =>
   [...line.matchAll(/(?<!`)(`+)(?!`).*?(?<!`)\1(?!`)/g)].map(m => [m.index, m.index + m[0].length] as const);
 
+/** `region format=md-table` → `{ mode: 'region', format: 'md-table' }`, or an error message */
 function parseOptions(raw: string | undefined): Directive['options'] | string {
   const options: Directive['options'] = {};
-  for (const pair of raw?.split(',').map(s => s.trim()).filter(Boolean) ?? []) {
-    const [key, value = ''] = pair.split('=').map(s => s.trim());
-    if (key !== 'format') return `unknown option "${key}"`;
+  const words = raw?.split(/\s+/).filter(Boolean) ?? [];
+  if (words[0] && !words[0].includes('=')) {
+    const mode = words.shift()!;
+    if (!isMode(mode)) return `unknown mode "${mode}" (expected ${MODES.join(', ')})`;
+    options.mode = mode;
+  }
+  for (const word of words) {
+    const [key, value = ''] = word.split('=');
+    if (key !== 'format') return `unknown option "${word}"`;
     if (!isFormat(value)) return `unknown format "${value}"`;
     options.format = value;
   }
@@ -139,7 +157,8 @@ export function updateRegions(
       if (match.index < consumed) continue;
       const directive: Directive = { line, command, options: typeof options === 'string' ? {} : options };
       const afterStart = match.index + match[0].length - consumed;
-      const close = end.exec(rest.slice(afterStart));
+      const mode = directive.options.mode;
+      const close = mode === 'line' || mode === 'codeblock' ? null : end.exec(rest.slice(afterStart));
       if (!close) return { text: rewritten + rest, open: { directive, options } };
       const previous = rest.slice(afterStart, afterStart + close.index);
       const next = generate(directive, options)?.trim();
@@ -168,11 +187,50 @@ export function updateRegions(
     i++;
     if (!open) continue;
     const { directive, options } = open;
+    const { mode } = directive.options;
+    const invalid = (reason: string) => results.push({ directive, kind: 'invalid', reason });
+
+    // line: replace exactly the next line with exactly one line of output
+    if (mode === 'line') {
+      const target = lines[i];
+      if (target === undefined) {
+        invalid('no line follows the directive');
+        continue;
+      }
+      if (lineDirectives(target, i, syntax).length > 0 || end.test(target) || (syntax.fences && openingFence(target))) {
+        invalid('the line after a `line` directive must be plain content, not a directive, end marker or code fence');
+        continue;
+      }
+      const body = generate(directive, options)?.replace(/\s+$/, '');
+      if (body === undefined) continue;
+      if (body.includes('\n')) {
+        results.push({
+          directive,
+          kind: 'failed',
+          result: { output: body, status: 0, error: `\`line\` mode expects one line of output, got ${body.split('\n').length}` },
+        });
+        continue;
+      }
+      const replacement = body === '' ? '' : lines[directive.line]!.match(/^\s*/)![0] + body.trimStart();
+      output.push(replacement);
+      results.push({ directive, kind: 'updated', changed: target !== replacement });
+      i++;
+      continue;
+    }
+
+    if (mode === 'codeblock' && !syntax.fences) {
+      invalid('`codeblock` mode only works in markdown files (or a `syntax` rule with `"fences": true`)');
+      continue;
+    }
 
     // codeblock: only blank lines between the directive and an opening fence
     let next = i;
-    while (syntax.fences && next < lines.length && lines[next]!.trim() === '') next++;
-    const codeFence = syntax.fences && next < lines.length && openingFence(lines[next]!);
+    while (syntax.fences && mode !== 'region' && next < lines.length && lines[next]!.trim() === '') next++;
+    const codeFence = syntax.fences && mode !== 'region' && next < lines.length && openingFence(lines[next]!);
+    if (mode === 'codeblock' && !codeFence) {
+      invalid('expected a fenced code block after the directive (only blank lines may come between)');
+      continue;
+    }
     if (codeFence) {
       const close = closingFence(lines, next, codeFence[2]!);
       if (close === -1) {
@@ -191,7 +249,7 @@ export function updateRegions(
       continue;
     }
 
-    // block: everything up to the end marker, which must come before any other directive
+    // region: everything up to the end marker, which must come before any other directive
     let stop = i;
     let found = false;
     for (; stop < lines.length; stop++) {
@@ -211,7 +269,7 @@ export function updateRegions(
       results.push({
         directive,
         kind: 'invalid',
-        reason: syntax.fences
+        reason: syntax.fences && !mode
           ? `no end marker \`${expected}\` or fenced code block follows the directive`
           : `no end marker \`${expected}\` follows the directive`,
       });

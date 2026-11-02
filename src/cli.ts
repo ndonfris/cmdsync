@@ -15,12 +15,12 @@ Usage: cmdsync [options] [paths...]
 Replace comment-delimited regions of any file with the output of the
 command named in the start comment:
 
-  <!-- CMDSYNC: my-cli --version -->
+  <!-- CMDSYNC region: my-cli --version -->
   this line is replaced with the output of \`my-cli --version\`
   <!-- /CMDSYNC -->
 
-In markdown, a start comment followed by a fenced code block replaces just
-the body of that block, and no end comment is needed.
+In markdown, \`<!-- CMDSYNC codeblock: cmd -->\` followed by a fenced code
+block replaces just the body of that block, and no end comment is needed.
 
 Arguments:
   paths                    Files or directories to process
@@ -51,8 +51,13 @@ Options:
   -h, --help               Show this help
   -v, --version            Show version
 
-Directive options: <!-- CMDSYNC[format=md-table]: cmd --> formats a JSON
-array printed by cmd as a markdown table (or format=html-table).
+Directives: <!-- CMDSYNC [mode] [format=...]: cmd -->
+  region     replace every line up to <!-- /CMDSYNC -->
+  line       replace the next line (output must be one line)
+  codeblock  replace the body of the next fenced code block (markdown)
+  (none)     codeblock if a fence follows in markdown, inline if the end
+             marker is on the same line, else region
+  format=md-table|html-table  render a JSON array printed by cmd as a table
 
 Config is read from the nearest cmdsync.json, or the "cmdsync" key of
 the nearest package.json.

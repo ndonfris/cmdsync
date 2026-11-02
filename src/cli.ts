@@ -5,35 +5,44 @@ import { type UserConfig, resolveConfig } from './config.js';
 import { type FileResult, displayPath, run } from './index.js';
 
 const HELP = `\
-Usage: update-codeblocks [options] [paths...]
+Usage: cmdsync [options] [paths...]
 
-Regenerate markdown code blocks from the output of the command in the
-html comment directly above them:
+Replace comment-delimited regions of any file with the output of the
+command named in the start comment:
 
-  <!-- UPDATE_CODEBLOCK: echo hello -->
-  \`\`\`text
-  hello
-  \`\`\`
+  <!-- CMDSYNC: my-cli --version -->
+  this line is replaced with the output of \`my-cli --version\`
+  <!-- /CMDSYNC -->
+
+In markdown, a start comment followed by a fenced code block replaces just
+the body of that block, and no end comment is needed.
 
 Arguments:
-  paths                  Markdown files or directories to process
-                         (default: the config's "include" globs)
+  paths                    Files or directories to process
+                           (default: the config's "include" globs)
 
 Options:
-  -c, --config <file>    Config file (update-codeblocks.json or package.json)
-      --check            Don't write; exit 1 if any code block is out of date
-  -n, --dry-run          Don't write; report what would change
-  -m, --marker <name>    Directive marker (overrides config)
-  -s, --shell <bin>      Shell used to run commands (overrides config)
-      --command <bin>    Allowed command binary, repeatable (overrides config)
-  -q, --quiet            Only print errors
-  -h, --help             Show this help
-  -v, --version          Show version
+  -c, --config <file>      Config file (cmdsync.json or package.json)
+      --check              Don't write; exit 1 if any region is out of date
+  -n, --dry-run            Don't write; report what would change
+  -m, --marker <name>      Start marker (overrides config)
+  -e, --end-marker <name>  End marker (overrides config, default: /<marker>)
+      --comment <delims>   Comment delimiters for every file, e.g. '#' or '/* */'
+                           (overrides config and the built-in syntax table)
+  -s, --shell <bin>        Shell used to run commands (overrides config)
+      --command <bin>      Allowed command binary, repeatable (overrides config)
+  -q, --quiet              Only print errors
+  -h, --help               Show this help
+  -v, --version            Show version
 
-Config is read from the nearest update-codeblocks.json, or the
-"update-codeblocks" key of the nearest package.json.
+Directive options: <!-- CMDSYNC[format=md-table]: cmd --> formats a JSON
+array printed by cmd as a markdown table (or format=html-table).
 
-Exit codes: 0 success, 1 failed command or stale code block (--check), 2 usage error
+Config is read from the nearest cmdsync.json, or the "cmdsync" key of
+the nearest package.json.
+
+Exit codes: 0 success, 1 failed command, invalid directive or out of date
+region (--check), 2 usage error
 `;
 
 const isGithubActions = process.env.GITHUB_ACTIONS === 'true';
@@ -41,7 +50,7 @@ const isGithubActions = process.env.GITHUB_ACTIONS === 'true';
 /** https://docs.github.com/actions/reference/workflow-commands-for-github-actions */
 const annotate = (level: 'error' | 'warning', file: string, line: number, message: string) => {
   const escape = (s: string) => s.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
-  console.log(`::${level} file=${escape(file)},line=${line},title=update-codeblocks::${escape(message)}`);
+  console.log(`::${level} file=${escape(file)},line=${line},title=cmdsync::${escape(message)}`);
 };
 
 function main(argv: string[]): number {
@@ -53,6 +62,8 @@ function main(argv: string[]): number {
       check: { type: 'boolean', default: false },
       'dry-run': { type: 'boolean', short: 'n', default: false },
       marker: { type: 'string', short: 'm' },
+      'end-marker': { type: 'string', short: 'e' },
+      comment: { type: 'string' },
       shell: { type: 'string', short: 's' },
       command: { type: 'string', multiple: true },
       quiet: { type: 'boolean', short: 'q', default: false },
@@ -69,6 +80,8 @@ function main(argv: string[]): number {
 
   const overrides: UserConfig = {
     ...values.marker && { marker: values.marker },
+    ...values['end-marker'] && { endMarker: values['end-marker'] },
+    ...values.comment && { comment: values.comment.trim().split(/\s+/) },
     ...values.shell && { shell: values.shell },
     ...values.command && { commands: values.command },
   };
@@ -77,51 +90,51 @@ function main(argv: string[]): number {
   const log = (...msg: unknown[]) => values.quiet || console.log(...msg);
 
   log(`config: ${config.source ?? '(defaults)'}`);
-  log(`marker: <!-- ${config.marker}: ... -->  shell: ${config.shell}${config.commands.length ? `  commands: ${config.commands.join(', ')}` : ''}\n`);
+  log(`markers: ${config.marker} … ${config.endMarker}  shell: ${config.shell}${config.commands.length ? `  commands: ${config.commands.join(', ')}` : ''}\n`);
 
-  const report = ({ file, changed, blocks }: FileResult) => {
+  const report = ({ file, changed, regions }: FileResult) => {
     const path = displayPath(file, config.root);
     log(`${changed ? (write ? '✎' : '✗') : '✓'} ${path}`);
-    for (const block of blocks) {
-      const at = `${path}:${block.directive.line + 1}`;
-      switch (block.kind) {
+    for (const region of regions) {
+      const at = `${path}:${region.directive.line + 1}`;
+      switch (region.kind) {
         case 'updated':
-          log(`    ${block.changed ? (write ? 'updated' : 'outdated') : 'ok'}  ${at}  ${block.directive.command}`);
-          if (block.changed && values.check && isGithubActions) {
-            annotate('error', path, block.directive.line + 1, `Code block is out of date, run \`update-codeblocks\` to regenerate it (${block.directive.command})`);
+          log(`    ${region.changed ? (write ? 'updated' : 'outdated') : 'ok'}  ${at}  ${region.directive.command}`);
+          if (region.changed && values.check && isGithubActions) {
+            annotate('error', path, region.directive.line + 1, `Region is out of date, run \`cmdsync\` to regenerate it (${region.directive.command})`);
           }
           break;
         case 'failed': {
-          const reason = block.result.error ?? `exited with status ${block.result.status}`;
-          console.error(`    failed  ${at}  ${block.directive.command}\n            ${reason}`);
-          if (block.result.output) console.error(block.result.output.trimEnd().replace(/^/gm, '            │ '));
-          if (isGithubActions) annotate('error', path, block.directive.line + 1, `\`${block.directive.command}\` ${reason}`);
+          const reason = region.result.error ?? `exited with status ${region.result.status}`;
+          console.error(`    failed  ${at}  ${region.directive.command}\n            ${reason}`);
+          if (region.result.output) console.error(region.result.output.trimEnd().replace(/^/gm, '            │ '));
+          if (isGithubActions) annotate('error', path, region.directive.line + 1, `\`${region.directive.command}\` ${reason}`);
           break;
         }
-        case 'missing-codeblock':
-          console.error(`    skipped ${at}  no fenced code block follows the directive`);
-          if (isGithubActions) annotate('warning', path, block.directive.line + 1, 'No fenced code block follows this directive');
+        case 'invalid':
+          console.error(`    invalid ${at}  ${region.reason}`);
+          if (isGithubActions) annotate('error', path, region.directive.line + 1, region.reason);
           break;
       }
     }
   };
 
   const results = run(config, { paths: positionals, write, onFile: report });
-  const blocks = results.flatMap(r => r.blocks);
-  const failed = blocks.filter(b => b.kind === 'failed').length;
+  const regions = results.flatMap(r => r.regions);
+  const failed = regions.filter(r => r.kind !== 'updated').length;
   const stale = results.filter(r => r.changed);
-  const changedBlocks = blocks.filter(b => b.kind === 'updated' && b.changed).length;
+  const changedRegions = regions.filter(r => r.kind === 'updated' && r.changed).length;
 
   const summary = [
-    `${results.length} file(s), ${blocks.length} directive(s)`,
-    `${changedBlocks} code block(s) ${write ? 'updated' : 'out of date'}`,
+    `${results.length} file(s), ${regions.length} directive(s)`,
+    `${changedRegions} region(s) ${write ? 'updated' : 'out of date'}`,
     ...failed ? [`${failed} failed`] : [],
   ].join(', ');
   log(`\n${summary}`);
 
   if (isGithubActions && process.env.GITHUB_STEP_SUMMARY) {
     const rows = stale.map(r => `- \`${displayPath(r.file, config.root)}\``).join('\n');
-    appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### update-codeblocks\n\n${summary}\n\n${rows}\n`);
+    appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### cmdsync\n\n${summary}\n\n${rows}\n`);
   }
   if (isGithubActions && process.env.GITHUB_OUTPUT) {
     appendFileSync(process.env.GITHUB_OUTPUT, `changed=${stale.length > 0}\nfailed=${failed}\n`);
@@ -133,6 +146,6 @@ function main(argv: string[]): number {
 try {
   process.exitCode = main(process.argv.slice(2));
 } catch (err) {
-  console.error(`update-codeblocks: ${(err as Error).message}`);
+  console.error(`cmdsync: ${(err as Error).message}`);
   process.exitCode = 2;
 }

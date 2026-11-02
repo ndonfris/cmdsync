@@ -1,0 +1,102 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://unpkg.com/cmdsync/cmdsync.schema.json",
+  "title": "cmdsync config",
+  "description": "Config for cmdsync, in cmdsync.json or the \"cmdsync\" key of package.json",
+  "type": "object",
+  "additionalProperties": false,
+  "definitions": {
+    "marker": { "type": "string", "pattern": "^[\\w.-]+$" },
+    "endMarker": { "type": "string", "pattern": "^[\\w./-]+$" },
+    "comment": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "maxItems": 2,
+      "description": "Comment delimiters: [\"#\"] for line comments, [\"/*\", \"*/\"] for block comments"
+    }
+  },
+  "properties": {
+    "$schema": { "type": "string" },
+    "marker": {
+      "$ref": "#/definitions/marker",
+      "default": "CMDSYNC",
+      "description": "Start of a region: <!-- MARKER: command -->"
+    },
+    "endMarker": {
+      "$ref": "#/definitions/endMarker",
+      "description": "End of a region: <!-- END_MARKER --> (default: \"/\" + marker)"
+    },
+    "shell": {
+      "type": "string",
+      "minLength": 1,
+      "default": "sh",
+      "description": "Shell binary used to run each command (invoked as `<shell> -c <command>`)"
+    },
+    "commands": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Command binaries directives may run. Every command in a pipeline/list must be listed. Empty allows anything."
+    },
+    "include": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": ["**/*.md", "**/*.mdx"],
+      "description": "Globs (relative to the config's directory) of files to scan"
+    },
+    "exclude": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": ["**/node_modules/**", "**/.git/**"],
+      "description": "Globs (relative to the config's directory) to skip"
+    },
+    "syntax": {
+      "type": "array",
+      "default": [],
+      "description": "Comment syntax per glob, checked before the built-in table. The first matching rule wins.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["include", "comment"],
+        "properties": {
+          "include": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 1,
+            "description": "Globs (relative to the config's directory) this rule applies to"
+          },
+          "comment": { "$ref": "#/definitions/comment" },
+          "marker": { "$ref": "#/definitions/marker", "description": "Start marker for these files" },
+          "endMarker": { "$ref": "#/definitions/endMarker", "description": "End marker for these files" },
+          "fences": {
+            "type": "boolean",
+            "default": false,
+            "description": "Treat as markdown: skip fenced/inline code, allow the fenced code block form"
+          }
+        }
+      }
+    },
+    "comment": {
+      "$ref": "#/definitions/comment",
+      "description": "Comment delimiters for every file, overriding `syntax` and the built-in table"
+    },
+    "cwd": {
+      "type": "string",
+      "default": ".",
+      "description": "Working directory for commands, relative to the config's directory"
+    },
+    "timeout": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "default": 60000,
+      "description": "Per-command timeout in milliseconds"
+    },
+    "env": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "default": {},
+      "description": "Extra environment variables passed to every command"
+    }
+  }
+}

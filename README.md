@@ -1,59 +1,261 @@
-# update-codeblocks
+# cmdsync
 
-Keep the code blocks in your markdown in sync with the output of real commands.
+Keep generated parts of your files (docs, tables, changelogs, version strings,
+config snippets) in sync with the output of real commands.
 
-Put an html comment above a fenced code block, naming the command that produces its content:
+Mark a region with a start and an end comment, naming the command that produces
+its content:
 
 ````markdown
-<!-- UPDATE_CODEBLOCK: my-cli --help -->
-```text
-this content is replaced with the output of `my-cli --help`
+<!-- CMDSYNC: my-cli --version -->
+this line is replaced with the output of `my-cli --version`
+<!-- /CMDSYNC -->
+````
+
+Running `cmdsync` executes each command and replaces **only what's between the
+comments**. The comments stay where they are, so running it again regenerates the
+same region.
+
+- Works in any file with comments: markdown, mdx, html, yaml, shell, TypeScript, ...
+  ([built-in syntax table](#comment-syntax), or [your own](#custom-syntax)).
+- Has no runtime dependencies.
+- If a command fails (non-zero exit, timeout, or a binary that isn't allowed),
+  its region keeps its old content and the run exits with status `1`.
+- Re-running with unchanged output changes nothing, so it's safe in CI.
+
+## Regions
+
+### Block
+
+Everything between the start and end comment is replaced. The output is indented
+to match the start comment, so regions also work inside yaml and nested lists.
+
+````markdown
+## Options
+<!-- CMDSYNC: my-cli --help -->
+<!-- /CMDSYNC -->
+````
+
+```yaml
+jobs:
+  test:
+    steps:
+      # CMDSYNC: my-cli ci-steps --yaml
+      - run: generated
+      # /CMDSYNC
+```
+
+### Inline
+
+Start and end comment on the same line: the text between them is replaced with
+the trimmed output. Use it for html elements, badges, or a version in a sentence.
+
+```html
+<p>Latest release: <span class="version"><!-- CMDSYNC: my-cli --version -->1.2.3<!-- /CMDSYNC --></span></p>
+```
+
+### Fenced code block (markdown)
+
+In markdown and mdx, a start comment followed (after optional blank lines) by a
+fenced code block replaces **only the body** of that block. The fences and info
+string stay, and no end comment is needed.
+
+````markdown
+<!-- CMDSYNC: my-cli completions fish -->
+```fish
+this content is replaced
 ```
 ````
 
-Running `update-codeblocks` executes each command and replaces **only the body**
-of the code block that follows it. The fences, info string (`text`, `fish`, `json`, ...)
-and the comment itself stay where they are.
+`` ``` `` and `~~~` fences both work, including longer fences (` ```` `) that wrap
+nested blocks. In markdown files, directives shown inside fenced code or inline
+code (like the examples in this README) are ignored.
 
-- Only blank lines may sit between the comment and the opening fence.
-- Both `` ``` `` and `~~~` fences work, including longer fences (` ```` `) that wrap nested blocks.
-- If a command fails (non-zero exit, timeout, or a binary that isn't allowed),
-  that block keeps its old content and the run exits with status `1`.
-- Re-running with unchanged output changes nothing, so it's safe in CI.
+### Tables
+
+Use `format=md-table` or `format=html-table` to turn a JSON array printed by the
+command into a table. The array can hold objects, where the keys become columns
+in the order they're first seen, or arrays, where the first row is the header.
+
+````markdown
+<!-- CMDSYNC[format=md-table]: my-cli list-codes --json -->
+| code | message |
+| ---- | ------- |
+<!-- /CMDSYNC -->
+````
+
+```console
+$ my-cli list-codes --json
+[{"code":1001,"message":"missing end"},{"code":1002,"message":"unused variable"}]
+```
+
+````markdown
+<!-- CMDSYNC[format=md-table]: my-cli list-codes --json -->
+| code | message |
+| ---- | ------- |
+| 1001 | missing end |
+| 1002 | unused variable |
+<!-- /CMDSYNC -->
+````
+
+The markdown table aligns every column but the last and escapes `|`. The html table escapes
+`& < > " { }`, so it's also valid inside `.mdx`. Newlines in cells become `<br />`.
+
+### MDX
+
+MDX doesn't allow html comments, so `.mdx` files use JSX comments:
+
+```mdx
+{/* CMDSYNC[format=html-table]: my-cli list-codes --json */}
+{/* /CMDSYNC */}
+```
+
+### Changelogs
+
+A changelog section is just a region:
+
+```markdown
+# Changelog
+
+<!-- CMDSYNC: git-cliff --unreleased --strip all -->
+<!-- /CMDSYNC -->
+```
+
+### Any other file
+
+```fish
+# CMDSYNC: my-cli completions fish
+complete -c my-cli ...
+# /CMDSYNC
+```
+
+```ts
+export const VERSION =
+  // CMDSYNC: node -p 'JSON.stringify(require("./package.json").version)'
+  '1.2.3'
+  // /CMDSYNC
+;
+```
+
+## Comment syntax
+
+The comment syntax is picked from the file name. Line comments like `#` have no
+closing delimiter, so in those files the directive runs to the end of its line
+and regions are block-only.
+
+<!-- CMDSYNC[format=md-table]: tsx scripts/syntax-table.ts -->
+| Comment        | Markdown | Files |
+| -------------- | -------- | ----- |
+| `<!--` … `-->` | yes      | `.md` `.markdown` |
+| `{/*` … `*/}`  | yes      | `.mdx` |
+| `<!--` … `-->` |          | `.html` `.htm` `.xml` `.svg` `.vue` `.svelte` `.astro` `.xhtml` `.plist` |
+| `#`            |          | `.sh` `.bash` `.zsh` `.fish` `.ksh` `.nu` `.ps1` `.py` `.rb` `.pl` `.r` `.jl` `.cr` `.ex` `.exs` `.nim` `.yml` `.yaml` `.toml` `.conf` `.cfg` `.properties` `.tf` `.hcl` `.nix` `.cmake` `.mk` `.env` `.gitignore` `.dockerignore` `.npmignore` `.prettierignore` `.gitattributes` `.editorconfig` `.service` `Makefile` `GNUmakefile` `Dockerfile` `Containerfile` `Justfile` `justfile` `Gemfile` `Rakefile` `Brewfile` `Procfile` `CODEOWNERS` `Vagrantfile` `.bashrc` `.zshrc` `.profile` |
+| `//`           |          | `.js` `.mjs` `.cjs` `.jsx` `.ts` `.mts` `.cts` `.tsx` `.jsonc` `.json5` `.c` `.h` `.cc` `.cpp` `.cxx` `.hpp` `.cs` `.java` `.kt` `.kts` `.scala` `.groovy` `.gradle` `.go` `.rs` `.swift` `.dart` `.zig` `.php` `.proto` `.scss` `.less` `.v` `.odin` |
+| `/*` … `*/`    |          | `.css` |
+| `--`           |          | `.lua` `.sql` `.hs` `.elm` `.ada` `.purs` |
+| `;`            |          | `.ini` `.lisp` `.el` `.clj` `.cljs` `.scm` `.rkt` `.asm` `.s` |
+| `%`            |          | `.tex` `.sty` `.erl` `.hrl` |
+| `"`            |          | `.vim` `.vimrc` |
+<!-- /CMDSYNC -->
+
+Files that don't match any row (and aren't covered by a [`syntax` rule](#custom-syntax))
+are an error, so add a rule or pass `--comment`.
+
+### Custom syntax
+
+Add `syntax` rules to cover other files, or to override the built-in table. The
+first rule whose `include` globs match a file wins, and each rule can also set its
+own start and end text:
+
+```json
+{
+  "include": ["**/*.md", "conf/*.conf", "Dockerfile"],
+  "syntax": [
+    { "include": ["conf/*.conf"], "comment": [";"], "marker": "BEGIN_GENERATED", "endMarker": "END_GENERATED" },
+    { "include": ["Dockerfile"], "comment": ["#"], "marker": "VERSIONS" }
+  ]
+}
+```
+
+```ini
+; BEGIN_GENERATED: my-cli defaults --ini
+timeout = 30
+; END_GENERATED
+```
+
+| Rule key | Description |
+| --- | --- |
+| `include` | Globs (relative to the config's directory) |
+| `comment` | `["#"]` for line comments, `["<!--", "-->"]` for block comments |
+| `marker` | Start text (default: the top-level `marker`) |
+| `endMarker` | End text (default: `/` + the rule's `marker`, else the top-level `endMarker`) |
+| `fences` | Treat as markdown: ignore fenced/inline code, allow the fenced code block form |
+
+For a one-off run, `--comment` sets the delimiters for every file:
+
+```fish
+cmdsync --comment '#' deploy/values.tpl
+cmdsync --comment '/* */' --marker GEN legacy/*.styl
+```
 
 ## Install
 
 ```fish
-yarn add -D update-codeblocks
+yarn add -D cmdsync
 # or run it without installing
-npx update-codeblocks --help
+npx cmdsync --help
 ```
+
+Requires Node.js `>=22.17`.
 
 ## CLI
 
+<!-- CMDSYNC: tsx src/cli.ts --help -->
 ```text
-Usage: update-codeblocks [options] [paths...]
+Usage: cmdsync [options] [paths...]
+
+Replace comment-delimited regions of any file with the output of the
+command named in the start comment:
+
+  <!-- CMDSYNC: my-cli --version -->
+  this line is replaced with the output of `my-cli --version`
+  <!-- /CMDSYNC -->
+
+In markdown, a start comment followed by a fenced code block replaces just
+the body of that block, and no end comment is needed.
 
 Arguments:
-  paths                  Markdown files or directories to process
-                         (default: the config's "include" globs)
+  paths                    Files or directories to process
+                           (default: the config's "include" globs)
 
 Options:
-  -c, --config <file>    Config file (update-codeblocks.json or package.json)
-      --check            Don't write; exit 1 if any code block is out of date
-  -n, --dry-run          Don't write; report what would change
-  -m, --marker <name>    Directive marker (overrides config)
-  -s, --shell <bin>      Shell used to run commands (overrides config)
-      --command <bin>    Allowed command binary, repeatable (overrides config)
-  -q, --quiet            Only print errors
-  -h, --help             Show this help
-  -v, --version          Show version
+  -c, --config <file>      Config file (cmdsync.json or package.json)
+      --check              Don't write; exit 1 if any region is out of date
+  -n, --dry-run            Don't write; report what would change
+  -m, --marker <name>      Start marker (overrides config)
+  -e, --end-marker <name>  End marker (overrides config, default: /<marker>)
+      --comment <delims>   Comment delimiters for every file, e.g. '#' or '/* */'
+                           (overrides config and the built-in syntax table)
+  -s, --shell <bin>        Shell used to run commands (overrides config)
+      --command <bin>      Allowed command binary, repeatable (overrides config)
+  -q, --quiet              Only print errors
+  -h, --help               Show this help
+  -v, --version            Show version
+
+Directive options: <!-- CMDSYNC[format=md-table]: cmd --> formats a JSON
+array printed by cmd as a markdown table (or format=html-table).
+
+Config is read from the nearest cmdsync.json, or the "cmdsync" key of
+the nearest package.json.
+
+Exit codes: 0 success, 1 failed command, invalid directive or out of date
+region (--check), 2 usage error
 ```
 
 | Exit code | Meaning |
 | --- | --- |
-| `0` | Everything succeeded (and, with `--check`, every block is up to date) |
-| `1` | A command failed, or `--check` found an out of date block |
+| `0` | Everything succeeded (and, with `--check`, every region is up to date) |
+| `1` | A command failed, a directive is invalid (unterminated region, unknown option), or `--check` found an out of date region |
 | `2` | Usage or config error |
 
 Typical `package.json` scripts:
@@ -61,8 +263,8 @@ Typical `package.json` scripts:
 ```json
 {
   "scripts": {
-    "docs:codeblocks": "update-codeblocks",
-    "docs:codeblocks:check": "update-codeblocks --check"
+    "docs": "cmdsync",
+    "docs:check": "cmdsync --check"
   }
 }
 ```
@@ -72,33 +274,35 @@ Typical `package.json` scripts:
 Config is optional. It is read from the first of these found, searching
 from the current directory upwards (or from `--config <file>`):
 
-1. `update-codeblocks.json`
-2. the `"update-codeblocks"` key in `package.json`
+1. `cmdsync.json`
+2. the `"cmdsync"` key in `package.json`
 
-When both exist in the same directory, `update-codeblocks.json` wins. Relative
-paths (`include`, `exclude`, `cwd`) resolve against the directory the config lives in.
-CLI flags override the config.
+When both exist in the same directory, `cmdsync.json` wins. Relative
+paths (`include`, `exclude`, `syntax[].include`, `cwd`) resolve against the directory
+the config lives in. CLI flags override the config.
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `marker` | `string` | `"UPDATE_CODEBLOCK"` | Directive name: `<!-- MARKER: command -->` |
+| `marker` | `string` | `"CMDSYNC"` | Start of a region: `<!-- MARKER: command -->` |
+| `endMarker` | `string` | `"/" + marker` | End of a region: `<!-- /MARKER -->` |
 | `shell` | `string` | `"sh"` | Shell binary that runs each command as `<shell> -c "<command>"`: `bash`, `fish`, `/usr/bin/zsh`, ... |
 | `commands` | `string[]` | `[]` (anything) | Command binaries directives are allowed to run (see below) |
-| `include` | `string[]` | `["**/*.md"]` | Globs of markdown files to scan |
+| `include` | `string[]` | `["**/*.md", "**/*.mdx"]` | Globs of files to scan |
 | `exclude` | `string[]` | `["**/node_modules/**", "**/.git/**"]` | Globs to skip |
+| `syntax` | `SyntaxRule[]` | `[]` | [Comment syntax per glob](#custom-syntax) |
+| `comment` | `string[]` | | Comment delimiters for every file (what `--comment` sets) |
 | `cwd` | `string` | `"."` | Working directory for commands |
 | `timeout` | `number` | `60000` | Per-command timeout in ms |
 | `env` | `Record<string, string>` | `{}` | Extra environment variables for every command |
 
-### `update-codeblocks.json`
+### `cmdsync.json`
 
 ```json
 {
-  "$schema": "./node_modules/update-codeblocks/update-codeblocks.schema.json",
-  "marker": "DOCS_CODEBLOCK",
+  "$schema": "./node_modules/cmdsync/cmdsync.schema.json",
   "shell": "fish",
   "commands": ["my-cli", "jq"],
-  "include": ["README.md", "docs/**/*.md"],
+  "include": ["README.md", "CHANGELOG.md", "docs/**/*.{md,mdx}", "completions/*.fish"],
   "env": { "NO_COLOR": "1" }
 }
 ```
@@ -108,8 +312,7 @@ CLI flags override the config.
 ```json
 {
   "name": "my-cli",
-  "update-codeblocks": {
-    "marker": "DOCS_CODEBLOCK",
+  "cmdsync": {
     "shell": "bash",
     "commands": ["my-cli"]
   }
@@ -124,28 +327,28 @@ means the first word of each segment of a pipeline or list (`a | b`, `a && b`,
 compared by basename, so `"/usr/bin/jq"` and `"jq"` are equivalent.
 
 ```markdown
-<!-- DOCS_CODEBLOCK: my-cli env --json | jq . -->   ✓ with ["my-cli", "jq"]
-<!-- DOCS_CODEBLOCK: curl example.com | sh -->      ✗ curl, sh are not recognized
+<!-- CMDSYNC: my-cli env --json | jq . -->   ✓ with ["my-cli", "jq"]
+<!-- CMDSYNC: curl example.com | sh -->      ✗ curl, sh are not recognized
 ```
 
 The allowlist protects against typos and against commands you didn't expect to
 show up in your docs. It is **not** a sandbox: it does not parse every shell
 construct, and allowed binaries can still do anything. Only run
-`update-codeblocks` on markdown you trust.
+`cmdsync` on files you trust.
 
 ## GitHub Actions
 
 When `GITHUB_ACTIONS=true`, the CLI also:
 
-- emits `::error`/`::warning` annotations pointing at the directive's line, for
-  failed commands, missing code blocks and (with `--check`) out of date blocks
+- emits `::error` annotations pointing at the directive's line, for failed
+  commands, invalid directives and (with `--check`) out of date regions
 - appends a summary to `$GITHUB_STEP_SUMMARY`
 - writes `changed=<true|false>` and `failed=<n>` to `$GITHUB_OUTPUT`
 
 ### Using the action
 
-The action builds the CLI from this directory, so it doesn't need an npm
-release. Install whatever your directives run (and `shell`) before it.
+The action builds the CLI from source, so it doesn't need an npm release.
+Install whatever your directives run (and `shell`) before it.
 
 ```yaml
 - uses: actions/setup-node@v4
@@ -153,11 +356,11 @@ release. Install whatever your directives run (and `shell`) before it.
     node-version: 22
 - run: yarn install --frozen-lockfile && yarn build   # makes `my-cli` available
 
-- uses: ndonfris/fish-lsp/packages/update-codeblocks@master
+- uses: ndonfris/cmdsync@master
   with:
-    mode: check            # `check` (default) fails on stale blocks, `write` regenerates them
+    mode: check            # `check` (default) fails on stale regions, `write` regenerates them
     # paths: README.md docs
-    # config: ./update-codeblocks.json
+    # config: ./cmdsync.json
     # args: --shell bash --command my-cli
     # working-directory: .
 ```
@@ -172,8 +375,8 @@ release. Install whatever your directives run (and `shell`) before it.
 
 | Output | Description |
 | --- | --- |
-| `changed` | `true` when any block was (or would be) changed |
-| `failed` | Number of failed directives |
+| `changed` | `true` when any region was (or would be) changed |
+| `failed` | Number of failed or invalid directives |
 
 ### Regenerate and commit
 
@@ -185,7 +388,7 @@ on:
 permissions:
   contents: write
 jobs:
-  codeblocks:
+  cmdsync:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -193,15 +396,15 @@ jobs:
         with:
           node-version: 22
       - run: yarn install --frozen-lockfile
-      - id: codeblocks
-        uses: ndonfris/fish-lsp/packages/update-codeblocks@master
+      - id: cmdsync
+        uses: ndonfris/cmdsync@master
         with:
           mode: write
-      - if: steps.codeblocks.outputs.changed == 'true'
+      - if: steps.cmdsync.outputs.changed == 'true'
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
-          git commit -am 'docs: update generated codeblocks'
+          git commit -am 'docs: regenerate cmdsync regions'
           git push
 ```
 
@@ -210,23 +413,37 @@ jobs:
 The CLI behaves the same when called directly (annotations included):
 
 ```yaml
-- run: npx update-codeblocks --check
+- run: npx cmdsync --check
 ```
 
 ## API
 
 ```ts
-import { resolveConfig, run, updateCodeblocks } from 'update-codeblocks';
+import { resolveConfig, run, updateRegions } from 'cmdsync';
 
 // whole run, the same as the CLI
 const results = run(resolveConfig({ cwd: process.cwd() }), { write: false });
 
 // pure transform with your own command runner
-const { content, results: blocks } = updateCodeblocks(markdown, 'UPDATE_CODEBLOCK', cmd => ({
+const syntax = { open: '<!--', close: '-->', fences: true, marker: 'CMDSYNC', endMarker: '/CMDSYNC' };
+const { content, results: regions } = updateRegions(markdown, syntax, cmd => ({
   output: `ran ${cmd}`,
   status: 0,
 }));
 ```
+
+## Migrating from `update-codeblocks`
+
+`cmdsync` was previously named `update-codeblocks`. Existing code block directives
+keep working as fenced code block regions, once you rename:
+
+| `update-codeblocks` | `cmdsync` |
+| --- | --- |
+| `update-codeblocks.json` / `"update-codeblocks"` key | `cmdsync.json` / `"cmdsync"` key |
+| default marker `UPDATE_CODEBLOCK` | default marker `CMDSYNC` (or set `"marker": "UPDATE_CODEBLOCK"`) |
+| `uses: ndonfris/fish-lsp/packages/update-codeblocks@master` | `uses: ndonfris/cmdsync@master` |
+| directive with no code block: warning, exit `0` | invalid directive: error, exit `1` |
+| `results[].blocks`, kind `missing-codeblock` | `results[].regions`, kind `invalid` |
 
 ## Development
 
@@ -235,6 +452,7 @@ yarn install
 yarn test        # node:test via tsx
 yarn typecheck
 yarn build       # emits dist/
+yarn docs        # regenerate this README's regions with cmdsync itself
 ```
 
 ## License

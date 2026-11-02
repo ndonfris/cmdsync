@@ -1,13 +1,15 @@
-import { readFileSync, statSync, writeFileSync } from 'node:fs';
-import { relative, resolve } from 'node:path';
-import fg from 'fast-glob';
-import { type BlockResult, updateCodeblocks } from './codeblocks.js';
+import { globSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { join, relative, resolve } from 'node:path';
 import type { ResolvedConfig } from './config.js';
+import { type RegionResult, updateRegions } from './regions.js';
 import { runCommand } from './run.js';
+import { type CommentSyntax, type RegionSyntax, builtinSyntax } from './syntax.js';
 
-export * from './codeblocks.js';
 export * from './config.js';
+export * from './format.js';
+export * from './regions.js';
 export * from './run.js';
+export * from './syntax.js';
 
 export interface FileResult {
   file: string;
@@ -15,37 +17,74 @@ export interface FileResult {
   changed: boolean;
   /** Written to disk (false in `check`/`dryRun` mode) */
   written: boolean;
-  blocks: BlockResult[];
+  regions: RegionResult[];
 }
 
-/** Markdown files for explicit `paths` (files or directories), or the config's `include` globs */
+const glob = (patterns: string[], cwd: string, exclude: string[] = []) =>
+  globSync(patterns, { cwd, exclude }).map(file => join(cwd, file));
+
+/** Files for explicit `paths` (files or directories), or the config's `include` globs */
 export function collectFiles(config: ResolvedConfig, paths: string[] = []): string[] {
-  const glob = (cwd: string) => fg.sync(config.include, { cwd, absolute: true, ignore: config.exclude, dot: false });
-  if (paths.length === 0) return glob(config.root).sort();
+  const files = (cwd: string) => glob(config.include, cwd, config.exclude).filter(f => statSync(f).isFile());
+  if (paths.length === 0) return files(config.root).sort();
 
   return [...new Set(paths.flatMap(p => {
     const path = resolve(p);
     const stats = statSync(path, { throwIfNoEntry: false });
     if (!stats) throw new Error(`Path does not exist: ${path}`);
-    return stats.isDirectory() ? glob(path) : [path];
+    return stats.isDirectory() ? files(path) : [path];
   }))].sort();
 }
 
-export function processFile(file: string, config: ResolvedConfig, options: { write: boolean; }): FileResult {
+const fromComment = ([open, close = '']: string[], fences: boolean): CommentSyntax => ({ open: open!, close, fences });
+
+/**
+ * Region syntax for a file: `comment` (from `--comment`), then the first
+ * matching `syntax` rule, then the built-in table by file extension.
+ */
+export function syntaxResolver(config: ResolvedConfig): (file: string) => RegionSyntax | undefined {
+  const markers = { marker: config.marker, endMarker: config.endMarker };
+  const rules = config.syntax.map(rule => ({
+    files: new Set(glob(rule.include, config.root)),
+    syntax: {
+      ...fromComment(rule.comment, rule.fences ?? false),
+      marker: rule.marker ?? config.marker,
+      endMarker: rule.endMarker ?? (rule.marker ? `/${rule.marker}` : config.endMarker),
+    },
+  }));
+
+  return file => {
+    if (config.comment) return { ...fromComment(config.comment, builtinSyntax(file)?.fences ?? false), ...markers };
+    const rule = rules.find(r => r.files.has(resolve(file)));
+    if (rule) return rule.syntax;
+    const builtin = builtinSyntax(file);
+    return builtin && { ...builtin, ...markers };
+  };
+}
+
+export function processFile(file: string, syntax: RegionSyntax, config: ResolvedConfig, options: { write: boolean; }): FileResult {
   const original = readFileSync(file, 'utf-8');
-  const { content, results } = updateCodeblocks(original, config.marker, cmd => runCommand(cmd, config));
+  if (!original.includes(syntax.marker)) return { file, changed: false, written: false, regions: [] };
+  const { content, results } = updateRegions(original, syntax, cmd => runCommand(cmd, config));
   const changed = content !== original;
   if (changed && options.write) writeFileSync(file, content, 'utf-8');
-  return { file, changed, written: changed && options.write, blocks: results };
+  return { file, changed, written: changed && options.write, regions: results };
 }
 
 export function run(
   config: ResolvedConfig,
   options: { paths?: string[]; write?: boolean; onFile?: (result: FileResult) => void; } = {},
 ): FileResult[] {
+  const syntaxFor = syntaxResolver(config);
   return collectFiles(config, options.paths)
-    .map(file => processFile(file, config, { write: options.write ?? true }))
-    .filter(result => result.blocks.length > 0)
+    .map(file => {
+      const syntax = syntaxFor(file);
+      if (!syntax) {
+        throw new Error(`No comment syntax known for ${displayPath(file, config.root)}: add a "syntax" rule to the config or pass --comment`);
+      }
+      return processFile(file, syntax, config, { write: options.write ?? true });
+    })
+    .filter(result => result.regions.length > 0)
     .map(result => (options.onFile?.(result), result));
 }
 

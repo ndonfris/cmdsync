@@ -2,13 +2,29 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
 /** Name of the standalone config file, and of the key used inside `package.json` */
-export const CONFIG_FILE = 'update-codeblocks.json';
-export const PACKAGE_JSON_KEY = 'update-codeblocks';
+export const CONFIG_FILE = 'cmdsync.json';
+export const PACKAGE_JSON_KEY = 'cmdsync';
+
+/** Comment syntax (and optionally markers) for files the built-in table doesn't cover, or should be overridden */
+export interface SyntaxRule {
+  /** Globs (relative to the config root) this rule applies to; the first matching rule wins */
+  include: string[];
+  /** Comment delimiters: `["#"]` for line comments, `["<!--", "-->"]` for block comments */
+  comment: string[];
+  /** Start marker for these files (default: the top-level `marker`) */
+  marker?: string;
+  /** End marker for these files (default: the top-level `endMarker`) */
+  endMarker?: string;
+  /** Treat as markdown: skip fenced/inline code, allow the fenced code block form */
+  fences?: boolean;
+}
 
 /** Config as written by the user (every field is optional) */
 export interface UserConfig {
-  /** Directive name inside the html comment: `<!-- MARKER: command -->` */
+  /** Start of a region: `<!-- MARKER: command -->` */
   marker?: string;
+  /** End of a region: `<!-- END_MARKER -->` (default: `/` + marker) */
+  endMarker?: string;
   /** Shell binary used to run each command (`sh`, `bash`, `fish`, `/usr/bin/fish`, ...) */
   shell?: string;
   /**
@@ -17,10 +33,14 @@ export interface UserConfig {
    * Omit (or leave empty) to allow any command.
    */
   commands?: string[];
-  /** Globs (relative to the config root) of markdown files to scan */
+  /** Globs (relative to the config root) of files to scan */
   include?: string[];
   /** Globs (relative to the config root) to skip */
   exclude?: string[];
+  /** Comment syntax per glob, checked before the built-in table */
+  syntax?: SyntaxRule[];
+  /** Comment delimiters for every file, overriding `syntax` and the built-in table (mainly for `--comment`) */
+  comment?: string[];
   /** Working directory for commands, relative to the config root */
   cwd?: string;
   /** Per-command timeout in milliseconds */
@@ -29,23 +49,28 @@ export interface UserConfig {
   env?: Record<string, string>;
 }
 
-export interface ResolvedConfig extends Required<UserConfig> {
+export interface ResolvedConfig extends Required<Omit<UserConfig, 'comment'>> {
+  comment: string[] | null;
   /** Directory the config was loaded from; relative paths resolve against it */
   root: string;
   /** Where the config came from, or `null` when only defaults are used */
   source: string | null;
 }
 
-export const DEFAULT_CONFIG: Required<UserConfig> = {
-  marker: 'UPDATE_CODEBLOCK',
+export const DEFAULT_CONFIG = {
+  marker: 'CMDSYNC',
   shell: 'sh',
   commands: [],
-  include: ['**/*.md'],
+  include: ['**/*.md', '**/*.mdx'],
   exclude: ['**/node_modules/**', '**/.git/**'],
+  syntax: [],
   cwd: '.',
   timeout: 60_000,
   env: {},
-};
+} satisfies UserConfig;
+
+/** `CMDSYNC` → `/CMDSYNC` */
+export const defaultEndMarker = (marker: string) => `/${marker}`;
 
 const readJson = (path: string): unknown => {
   try {
@@ -61,17 +86,33 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every(v => typeof v === 'string');
 
+const isMarker = (v: unknown) => typeof v === 'string' && /^[\w.-]+$/.test(v);
+const isEndMarker = (v: unknown) => typeof v === 'string' && /^[\w./-]+$/.test(v);
+const isComment = (v: unknown) => isStringArray(v) && v.length >= 1 && v.length <= 2 && v[0] !== '';
+
+const isSyntaxRule = (v: unknown) =>
+  isObject(v) &&
+  Object.keys(v).every(k => ['include', 'comment', 'marker', 'endMarker', 'fences'].includes(k)) &&
+  isStringArray(v.include) && v.include.length > 0 &&
+  isComment(v.comment) &&
+  (v.marker === undefined || isMarker(v.marker)) &&
+  (v.endMarker === undefined || isEndMarker(v.endMarker)) &&
+  (v.fences === undefined || typeof v.fences === 'boolean');
+
 /** Throws a readable error for any unknown key or wrongly typed value */
 export function validateConfig(value: unknown, source: string): UserConfig {
   if (!isObject(value)) throw new Error(`${source}: config must be an object`);
 
   const checks: Record<keyof UserConfig | '$schema', (v: unknown) => boolean> = {
     $schema: v => typeof v === 'string',
-    marker: v => typeof v === 'string' && /^[\w.-]+$/.test(v),
+    marker: isMarker,
+    endMarker: isEndMarker,
     shell: v => typeof v === 'string' && v.length > 0,
     commands: isStringArray,
     include: isStringArray,
     exclude: isStringArray,
+    syntax: v => Array.isArray(v) && v.every(isSyntaxRule),
+    comment: isComment,
     cwd: v => typeof v === 'string',
     timeout: v => typeof v === 'number' && v > 0,
     env: v => isObject(v) && Object.values(v).every(e => typeof e === 'string'),
@@ -89,7 +130,7 @@ export function validateConfig(value: unknown, source: string): UserConfig {
 
 /**
  * Find the user's config, walking up from `cwd`. In each directory
- * `update-codeblocks.json` wins over the `"update-codeblocks"` key in `package.json`.
+ * `cmdsync.json` wins over the `"cmdsync"` key in `package.json`.
  */
 export function findConfig(cwd: string): { config: UserConfig; root: string; source: string; } | null {
   let dir = resolve(cwd);
@@ -112,7 +153,7 @@ export function findConfig(cwd: string): { config: UserConfig; root: string; sou
   }
 }
 
-/** Load a config from an explicit path (`update-codeblocks.json` or `package.json`) */
+/** Load a config from an explicit path (`cmdsync.json` or `package.json`) */
 export function loadConfigFile(path: string): { config: UserConfig; root: string; source: string; } {
   const file = resolve(path);
   if (!existsSync(file)) throw new Error(`Config file does not exist: ${file}`);
@@ -133,10 +174,13 @@ export function resolveConfig(
   const cwd = resolve(options.cwd ?? process.cwd());
   const found = options.configPath ? loadConfigFile(options.configPath) : findConfig(cwd);
   const root = found?.root ?? cwd;
-  const merged = { ...DEFAULT_CONFIG, ...found?.config, ...options.overrides };
+  const merged: UserConfig = { ...DEFAULT_CONFIG, ...found?.config, ...options.overrides };
   return {
+    ...DEFAULT_CONFIG,
     ...merged,
-    cwd: resolve(root, merged.cwd),
+    endMarker: merged.endMarker ?? defaultEndMarker(merged.marker ?? DEFAULT_CONFIG.marker),
+    comment: merged.comment ?? null,
+    cwd: resolve(root, merged.cwd ?? DEFAULT_CONFIG.cwd),
     root,
     source: found?.source ?? null,
   };

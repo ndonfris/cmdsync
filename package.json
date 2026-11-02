@@ -1,28 +1,31 @@
 {
   "$schema": "https://json.schemastore.org/package",
-  "name": "update-codeblocks",
+  "name": "cmdsync",
   "version": "0.1.0",
-  "description": "Regenerate markdown code blocks from the output of shell commands declared in HTML comments",
+  "description": "Sync command output into comment-delimited regions of any file: markdown/mdx code blocks and tables, html, changelogs, scripts, configs",
   "author": "ndonfris",
   "license": "MIT",
   "keywords": [
     "markdown",
+    "mdx",
     "docs",
     "codeblock",
     "readme",
-    "generate"
+    "generate",
+    "regions",
+    "codegen",
+    "sync"
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ndonfris/fish-lsp.git",
-    "directory": "packages/update-codeblocks"
+    "url": "git+https://github.com/ndonfris/cmdsync.git"
   },
   "type": "module",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.17.0"
   },
   "bin": {
-    "update-codeblocks": "./dist/cli.js"
+    "cmdsync": "./dist/cli.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -31,12 +34,12 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./schema.json": "./update-codeblocks.schema.json",
+    "./schema.json": "./cmdsync.schema.json",
     "./package.json": "./package.json"
   },
   "files": [
     "dist",
-    "update-codeblocks.schema.json",
+    "cmdsync.schema.json",
     "README.md"
   ],
   "scripts": {
@@ -44,13 +47,12 @@
     "dev": "tsx src/cli.ts",
     "test": "tsx --test tests/*.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "docs": "tsx src/cli.ts",
+    "docs:check": "tsx src/cli.ts --check",
     "prepublishOnly": "yarn build && yarn test"
   },
-  "dependencies": {
-    "fast-glob": "^3.3.3"
-  },
   "devDependencies": {
-    "@types/node": "^22.0.0",
+    "@types/node": "^22.17.0",
     "tsx": "^4.23.1",
     "typescript": "^5.9.3"
   }

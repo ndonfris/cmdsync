@@ -7,6 +7,7 @@ import { type CommentSyntax, type RegionSyntax, builtinSyntax } from './syntax.j
 
 export * from './config.js';
 export * from './format.js';
+export * from './git.js';
 export * from './regions.js';
 export * from './run.js';
 export * from './syntax.js';
@@ -17,6 +18,8 @@ export interface FileResult {
   changed: boolean;
   /** Written to disk (false in `check`/`dryRun` mode) */
   written: boolean;
+  /** The regenerated content (equal to what's on disk when nothing changed) */
+  content: string;
   regions: RegionResult[];
 }
 
@@ -68,11 +71,11 @@ export function processFile(
   options: { write: boolean; run: (command: string) => CommandResult; },
 ): FileResult {
   const original = readFileSync(file, 'utf-8');
-  if (!original.includes(syntax.marker)) return { file, changed: false, written: false, regions: [] };
+  if (!original.includes(syntax.marker)) return { file, changed: false, written: false, content: original, regions: [] };
   const { content, results } = updateRegions(original, syntax, options.run);
   const changed = content !== original;
   if (changed && options.write) writeFileSync(file, content, 'utf-8');
-  return { file, changed, written: changed && options.write, regions: results };
+  return { file, changed, written: changed && options.write, content, regions: results };
 }
 
 export function run(

@@ -2,8 +2,8 @@
  * Prints every diagnostic code from `src/error-codes.ts` as JSON rows, for
  * cmdsync's `format=md-table` / `format=html-table`:
  *
- *   <!-- CMDSYNC region format=md-table: tsx scripts/error-codes.ts --links -->
- *   <!-- /CMDSYNC -->
+ *   <!-- CMDSYNC region start format=md-table: tsx scripts/error-codes.ts --links -->
+ *   <!-- CMDSYNC end -->
  *
  * Importing the source (instead of hand-copying its values into the docs)
  * means a new entry in `ErrorCodes.codes` shows up in every table on the next

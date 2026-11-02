@@ -6,26 +6,36 @@
   "type": "object",
   "additionalProperties": false,
   "definitions": {
-    "marker": { "type": "string", "pattern": "^[\\w.-]+$" },
-    "endMarker": { "type": "string", "pattern": "^[\\w./-]+$" },
+    "marker": {
+      "type": "string",
+      "pattern": "^[\\w.-]+$"
+    },
+    "endMarker": {
+      "type": "string",
+      "pattern": "^[\\w./-]+( [\\w./-]+)*$"
+    },
     "comment": {
       "type": "array",
-      "items": { "type": "string" },
+      "items": {
+        "type": "string"
+      },
       "minItems": 1,
       "maxItems": 2,
       "description": "Comment delimiters: [\"#\"] for line comments, [\"/*\", \"*/\"] for block comments"
     }
   },
   "properties": {
-    "$schema": { "type": "string" },
+    "$schema": {
+      "type": "string"
+    },
     "marker": {
       "$ref": "#/definitions/marker",
       "default": "CMDSYNC",
-      "description": "Start of a region: <!-- MARKER: command -->"
+      "description": "Starts a directive: <!-- MARKER region start: command -->"
     },
     "endMarker": {
       "$ref": "#/definitions/endMarker",
-      "description": "End of a region: <!-- END_MARKER --> (default: \"/\" + marker)"
+      "description": "End of a region: <!-- END_MARKER --> (default: marker + \" end\")"
     },
     "shell": {
       "type": "string",
@@ -35,26 +45,41 @@
     },
     "commands": {
       "type": "array",
-      "items": { "type": "string" },
+      "items": {
+        "type": "string"
+      },
       "default": [],
       "description": "Command binaries directives may run. Every command in a pipeline/list must be listed. Empty allows anything."
     },
     "install": {
       "type": "object",
-      "additionalProperties": { "type": "string", "minLength": 1 },
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      },
       "default": {},
       "description": "How to install a binary that directives run, keyed by binary name. Runs (with `shell`, `cwd` and `env`) the first time a directive needs a binary that isn't on PATH."
     },
     "include": {
       "type": "array",
-      "items": { "type": "string" },
-      "default": ["**/*.md", "**/*.mdx"],
+      "items": {
+        "type": "string"
+      },
+      "default": [
+        "**/*.md",
+        "**/*.mdx"
+      ],
       "description": "Globs (relative to the config's directory) of files to scan"
     },
     "exclude": {
       "type": "array",
-      "items": { "type": "string" },
-      "default": ["**/node_modules/**", "**/.git/**"],
+      "items": {
+        "type": "string"
+      },
+      "default": [
+        "**/node_modules/**",
+        "**/.git/**"
+      ],
       "description": "Globs (relative to the config's directory) to skip"
     },
     "syntax": {
@@ -64,17 +89,30 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["include", "comment"],
+        "required": [
+          "include",
+          "comment"
+        ],
         "properties": {
           "include": {
             "type": "array",
-            "items": { "type": "string" },
+            "items": {
+              "type": "string"
+            },
             "minItems": 1,
             "description": "Globs (relative to the config's directory) this rule applies to"
           },
-          "comment": { "$ref": "#/definitions/comment" },
-          "marker": { "$ref": "#/definitions/marker", "description": "Start marker for these files" },
-          "endMarker": { "$ref": "#/definitions/endMarker", "description": "End marker for these files" },
+          "comment": {
+            "$ref": "#/definitions/comment"
+          },
+          "marker": {
+            "$ref": "#/definitions/marker",
+            "description": "Start marker for these files"
+          },
+          "endMarker": {
+            "$ref": "#/definitions/endMarker",
+            "description": "End marker for these files"
+          },
           "fences": {
             "type": "boolean",
             "default": false,
@@ -100,7 +138,9 @@
     },
     "env": {
       "type": "object",
-      "additionalProperties": { "type": "string" },
+      "additionalProperties": {
+        "type": "string"
+      },
       "default": {},
       "description": "Extra environment variables passed to every command"
     }

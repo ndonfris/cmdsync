@@ -21,9 +21,9 @@ export interface SyntaxRule {
 
 /** Config as written by the user (every field is optional) */
 export interface UserConfig {
-  /** Start of a region: `<!-- MARKER: command -->` */
+  /** Starts a directive: `<!-- MARKER region start: command -->` */
   marker?: string;
-  /** End of a region: `<!-- END_MARKER -->` (default: `/` + marker) */
+  /** End of a region: `<!-- END_MARKER -->` (default: marker + ` end`) */
   endMarker?: string;
   /** Shell binary used to run each command (`sh`, `bash`, `fish`, `/usr/bin/fish`, ...) */
   shell?: string;
@@ -76,8 +76,8 @@ export const DEFAULT_CONFIG = {
   env: {},
 } satisfies UserConfig;
 
-/** `CMDSYNC` → `/CMDSYNC` */
-export const defaultEndMarker = (marker: string) => `/${marker}`;
+/** `CMDSYNC` → `CMDSYNC end` */
+export const defaultEndMarker = (marker: string) => `${marker} end`;
 
 const readJson = (path: string): unknown => {
   try {
@@ -94,7 +94,7 @@ const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every(v => typeof v === 'string');
 
 const isMarker = (v: unknown) => typeof v === 'string' && /^[\w.-]+$/.test(v);
-const isEndMarker = (v: unknown) => typeof v === 'string' && /^[\w./-]+$/.test(v);
+const isEndMarker = (v: unknown) => typeof v === 'string' && /^[\w./-]+( [\w./-]+)*$/.test(v);
 const isComment = (v: unknown) => isStringArray(v) && v.length >= 1 && v.length <= 2 && v[0] !== '';
 
 const isSyntaxRule = (v: unknown) =>

@@ -15,9 +15,9 @@ Usage: cmdsync [options] [paths...]
 Replace comment-delimited regions of any file with the output of the
 command named in the start comment:
 
-  <!-- CMDSYNC region: my-cli --version -->
+  <!-- CMDSYNC region start: my-cli --version -->
   this line is replaced with the output of \`my-cli --version\`
-  <!-- /CMDSYNC -->
+  <!-- CMDSYNC end -->
 
 In markdown, \`<!-- CMDSYNC codeblock: cmd -->\` followed by a fenced code
 block replaces just the body of that block, and no end comment is needed.
@@ -38,7 +38,7 @@ Options:
       --staged             Write, then \`git add\` the files that changed; refuses
                            files with unstaged changes (for a pre-commit hook)
   -m, --marker <name>      Start marker (overrides config)
-  -e, --end-marker <name>  End marker (overrides config, default: /<marker>)
+  -e, --end-marker <name>  End marker (overrides config, default: "<marker> end")
       --comment <delims>   Comment delimiters for every file, e.g. '#' or '/* */'
                            (overrides config and the built-in syntax table)
   -s, --shell <bin>        Shell used to run commands (overrides config)
@@ -51,8 +51,9 @@ Options:
   -h, --help               Show this help
   -v, --version            Show version
 
-Directives: <!-- CMDSYNC [mode] [format=...]: cmd -->
-  region     replace every line up to <!-- /CMDSYNC -->
+Directives: <!-- CMDSYNC [mode] [start] [format=...]: cmd -->
+  region     replace every line up to <!-- CMDSYNC end -->
+             (\`region start\`, or just \`start\`; on one line: inline)
   line       replace the next line (output must be one line)
   codeblock  replace the body of the next fenced code block (markdown)
   (none)     codeblock if a fence follows in markdown, inline if the end

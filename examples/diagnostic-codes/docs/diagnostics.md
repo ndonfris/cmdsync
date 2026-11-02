@@ -2,7 +2,7 @@
 
 Every diagnostic `my-lsp` reports. This table is generated from `src/error-codes.ts` by `scripts/error-codes.ts`, so don't edit it by hand: run `cmdsync`.
 
-<!-- CMDSYNC region format=md-table: tsx scripts/error-codes.ts --links -->
+<!-- CMDSYNC region start format=md-table: tsx scripts/error-codes.ts --links -->
 | Code                                               | Severity    | Message |
 | -------------------------------------------------- | ----------- | ------- |
 | [`1001`](https://example.com/docs/end)             | Error       | missing closing token |
@@ -14,11 +14,11 @@ Every diagnostic `my-lsp` reports. This table is generated from `src/error-codes
 | [`4006`](https://example.com/docs/functions)       | Error       | function is defined more than once in the same scope |
 | [`6001`](https://example.com/docs/env)             | Information | MY_LSP_LOG is renamed to MY_LSP_LOG_FILE (deprecated) |
 | [`9999`](https://example.com/docs/syntax)          | Error       | syntax error |
-<!-- /CMDSYNC -->
+<!-- CMDSYNC end -->
 
 Without deprecated codes, as an html table:
 
-<!-- CMDSYNC region format=html-table: tsx scripts/error-codes.ts --exclude-deprecated -->
+<!-- CMDSYNC region start format=html-table: tsx scripts/error-codes.ts --exclude-deprecated -->
 <table>
   <thead>
     <tr><th>Code</th><th>Severity</th><th>Message</th></tr>
@@ -34,4 +34,4 @@ Without deprecated codes, as an html table:
     <tr><td>9999</td><td>Error</td><td>syntax error</td></tr>
   </tbody>
 </table>
-<!-- /CMDSYNC -->
+<!-- CMDSYNC end -->

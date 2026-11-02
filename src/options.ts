@@ -17,7 +17,7 @@ export const OPTIONS: CliOption[] = [
   { long: 'dry-run', short: 'n', description: "Don't write; report what would change" },
   { long: 'staged', description: 'Write, then git add the changed files (for a pre-commit hook)' },
   { long: 'marker', short: 'm', value: 'text', description: 'Start marker (overrides config)' },
-  { long: 'end-marker', short: 'e', value: 'text', description: 'End marker (overrides config)' },
+  { long: 'end-marker', short: 'e', value: 'text', description: 'End marker (overrides config, default: <marker> end)' },
   { long: 'comment', value: 'text', description: "Comment delimiters for every file, e.g. '#' or '/* */'" },
   { long: 'shell', short: 's', value: 'command', description: 'Shell used to run commands (overrides config)' },
   { long: 'command', value: 'command', multiple: true, description: 'Allowed command binary, repeatable (overrides config)' },

@@ -42,9 +42,9 @@ describe('resolveConfig', () => {
   });
 
   it('derives the end marker from the marker unless set', () => {
-    assert.equal(resolveConfig({ cwd: fixture({ 'cmdsync.json': { marker: 'A' } }) }).endMarker, '/A');
+    assert.equal(resolveConfig({ cwd: fixture({ 'cmdsync.json': { marker: 'A' } }) }).endMarker, 'A end');
     assert.equal(resolveConfig({ cwd: fixture({ 'cmdsync.json': { endMarker: 'END' } }) }).endMarker, 'END');
-    assert.equal(resolveConfig({ cwd: fixture({ 'cmdsync.json': {} }) }).endMarker, '/CMDSYNC');
+    assert.equal(resolveConfig({ cwd: fixture({ 'cmdsync.json': {} }) }).endMarker, 'CMDSYNC end');
   });
 
   it('validates syntax rules', () => {

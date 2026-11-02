@@ -35,7 +35,7 @@ const repo = (files: Record<string, string>) => {
 const staged = (dir: string) => sh(dir, 'git', 'diff', '--cached', '--name-only').stdout.split('\n').filter(Boolean);
 
 describe('--staged', () => {
-  const doc = '<!-- CMDSYNC: cat version.txt -->\n<!-- /CMDSYNC -->\n';
+  const doc = '<!-- CMDSYNC: cat version.txt -->\n<!-- CMDSYNC end -->\n';
 
   it('regenerates docs made stale by another staged file, and stages them', () => {
     const dir = repo({ 'version.txt': '1', 'README.md': doc.replace('-->\n<', '-->\n1\n<') });

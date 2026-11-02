@@ -1,12 +1,12 @@
 /**
- * Pure text transforms: find `<!-- MARKER [mode] [key=value ...]: command -->`
+ * Pure text transforms: find `<!-- MARKER [mode] [start] [key=value ...]: command -->`
  * directives (in any comment syntax) and replace what they point at with the
  * command's output.
  *
- *   region     `<!-- MARKER region: cmd -->` ... lines ... `<!-- /MARKER -->`
+ *   region     `<!-- MARKER region start: cmd -->` ... lines ... `<!-- MARKER end -->`
  *   line       `<!-- MARKER line: cmd -->` then the single line it replaces
  *   codeblock  `<!-- MARKER codeblock: cmd -->` then a fenced code block (markdown only)
- *   inline     `<!-- MARKER: cmd -->text<!-- /MARKER -->` on one line
+ *   inline     `<!-- MARKER region start: cmd -->text<!-- MARKER end -->` on one line
  *
  * Without a mode, a markdown directive followed by a fenced code block is a
  * codeblock, one with its end marker on the same line is inline, and anything
@@ -24,8 +24,8 @@ export interface Directive {
   /** 0-based line index of the start comment */
   line: number;
   command: string;
-  /** `MARKER mode key=value ...: command` */
-  options: { mode?: Mode; format?: Format; };
+  /** `MARKER mode start key=value ...: command` */
+  options: { mode?: Mode; start?: true; format?: Format; };
 }
 
 export interface CommandResult {
@@ -44,11 +44,15 @@ const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const closeOrEol = (syntax: RegionSyntax) => syntax.close ? escapeRegExp(syntax.close) : '$';
 
+/** Marker text with any run of spaces matching any whitespace (`CMDSYNC end`) */
+const markerPattern = (marker: string) => marker.trim().split(/\s+/).map(escapeRegExp).join('\\s+');
+
+/** Only words and `key=value` between the marker and the colon, so `<!-- MARKER end -->` is never a start */
 export const startPattern = (syntax: RegionSyntax) =>
-  new RegExp(`${escapeRegExp(syntax.open)}\\s*${escapeRegExp(syntax.marker)}(?:\\s+([^:]*?))?\\s*:\\s*(.+?)\\s*${closeOrEol(syntax)}`, 'g');
+  new RegExp(`${escapeRegExp(syntax.open)}\\s*${markerPattern(syntax.marker)}((?:\\s+[\\w.=-]+)*)\\s*:\\s*(.+?)\\s*${closeOrEol(syntax)}`, 'g');
 
 export const endPattern = (syntax: RegionSyntax) =>
-  new RegExp(`${escapeRegExp(syntax.open)}\\s*${escapeRegExp(syntax.endMarker)}\\s*${closeOrEol(syntax)}`);
+  new RegExp(`${escapeRegExp(syntax.open)}\\s*${markerPattern(syntax.endMarker)}\\s*${closeOrEol(syntax)}`);
 
 const openingFence = (line: string) => line.match(/^(\s*)(`{3,}|~{3,})/);
 
@@ -68,14 +72,21 @@ const closingFence = (lines: string[], open: number, fence: string) => {
 const codeSpans = (line: string) =>
   [...line.matchAll(/(?<!`)(`+)(?!`).*?(?<!`)\1(?!`)/g)].map(m => [m.index, m.index + m[0].length] as const);
 
-/** `region format=md-table` → `{ mode: 'region', format: 'md-table' }`, or an error message */
+/** `region start format=md-table` → `{ mode: 'region', start: true, format: 'md-table' }`, or an error message */
 function parseOptions(raw: string | undefined): Directive['options'] | string {
   const options: Directive['options'] = {};
   const words = raw?.split(/\s+/).filter(Boolean) ?? [];
-  if (words[0] && !words[0].includes('=')) {
+  if (words[0] && !words[0].includes('=') && words[0] !== 'start') {
     const mode = words.shift()!;
     if (!isMode(mode)) return `unknown mode "${mode}" (expected ${MODES.join(', ')})`;
     options.mode = mode;
+  }
+  if (words[0] === 'start') {
+    words.shift();
+    if (options.mode === 'line' || options.mode === 'codeblock') {
+      return `\`${options.mode}\` directives have no end marker, so they don't take \`start\``;
+    }
+    options.start = true;
   }
   for (const word of words) {
     const [key, value = ''] = word.split('=');
@@ -189,6 +200,11 @@ export function updateRegions(
     const { directive, options } = open;
     const { mode } = directive.options;
     const invalid = (reason: string) => results.push({ directive, kind: 'invalid', reason });
+    // a bad mode or option is the real problem, not whatever the fallback mode would complain about
+    if (typeof options === 'string') {
+      invalid(options);
+      continue;
+    }
 
     // line: replace exactly the next line with exactly one line of output
     if (mode === 'line') {

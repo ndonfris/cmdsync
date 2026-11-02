@@ -7,10 +7,10 @@ const ok = (output: string) => () => ({ output, status: 0 });
 const echo = (command: string) => ({ output: command, status: 0 });
 const md = (...lines: string[]) => lines.join('\n');
 
-const markdown: RegionSyntax = { open: '<!--', close: '-->', fences: true, marker: 'M', endMarker: '/M' };
+const markdown: RegionSyntax = { open: '<!--', close: '-->', fences: true, marker: 'M', endMarker: 'M end' };
 const html: RegionSyntax = { ...markdown, fences: false };
 const mdx: RegionSyntax = { ...markdown, open: '{/*', close: '*/}' };
-const hash: RegionSyntax = { open: '#', close: '', fences: false, marker: 'M', endMarker: '/M' };
+const hash: RegionSyntax = { open: '#', close: '', fences: false, marker: 'M', endMarker: 'M end' };
 
 describe('findDirectives', () => {
   it('finds directives for the configured marker only', () => {
@@ -74,35 +74,35 @@ describe('updateRegions: codeblock', () => {
 
 describe('updateRegions: block', () => {
   it('replaces everything between the start and end markers', () => {
-    const input = md('<!-- M: x -->', '| a |', '| - |', '<!-- /M -->', 'tail');
-    assert.equal(updateRegions(input, markdown, ok('| b |\n| - |\n')).content, md('<!-- M: x -->', '| b |', '| - |', '<!-- /M -->', 'tail'));
+    const input = md('<!-- M: x -->', '| a |', '| - |', '<!-- M end -->', 'tail');
+    assert.equal(updateRegions(input, markdown, ok('| b |\n| - |\n')).content, md('<!-- M: x -->', '| b |', '| - |', '<!-- M end -->', 'tail'));
   });
 
   it('fills an empty region and can empty it again', () => {
-    const empty = md('<!-- M: x -->', '<!-- /M -->');
-    assert.equal(updateRegions(empty, markdown, ok('new')).content, md('<!-- M: x -->', 'new', '<!-- /M -->'));
-    assert.equal(updateRegions(md('<!-- M: x -->', 'old', '<!-- /M -->'), markdown, ok('')).content, empty);
+    const empty = md('<!-- M: x -->', '<!-- M end -->');
+    assert.equal(updateRegions(empty, markdown, ok('new')).content, md('<!-- M: x -->', 'new', '<!-- M end -->'));
+    assert.equal(updateRegions(md('<!-- M: x -->', 'old', '<!-- M end -->'), markdown, ok('')).content, empty);
   });
 
   it('works with line comments and indents to the start marker', () => {
-    const input = md('jobs:', '  # M: x', '  old: 1', '  # /M', 'end: true');
-    assert.equal(updateRegions(input, hash, ok('a: 1\nb: 2')).content, md('jobs:', '  # M: x', '  a: 1', '  b: 2', '  # /M', 'end: true'));
+    const input = md('jobs:', '  # M: x', '  old: 1', '  # M end', 'end: true');
+    assert.equal(updateRegions(input, hash, ok('a: 1\nb: 2')).content, md('jobs:', '  # M: x', '  a: 1', '  b: 2', '  # M end', 'end: true'));
   });
 
   it('works with mdx comments', () => {
-    const input = md('{/* M: x */}', 'old', '{/* /M */}');
-    assert.equal(updateRegions(input, mdx, ok('new')).content, md('{/* M: x */}', 'new', '{/* /M */}'));
+    const input = md('{/* M: x */}', 'old', '{/* M end */}');
+    assert.equal(updateRegions(input, mdx, ok('new')).content, md('{/* M: x */}', 'new', '{/* M end */}'));
   });
 
   it('skips end markers inside fenced code in markdown', () => {
-    const input = md('<!-- M: x -->', 'intro', '```', '<!-- /M -->', '```', 'old', '<!-- /M -->');
-    assert.equal(updateRegions(input, markdown, ok('new')).content, md('<!-- M: x -->', 'new', '<!-- /M -->'));
+    const input = md('<!-- M: x -->', 'intro', '```', '<!-- M end -->', '```', 'old', '<!-- M end -->');
+    assert.equal(updateRegions(input, markdown, ok('new')).content, md('<!-- M: x -->', 'new', '<!-- M end -->'));
   });
 
   it('reports a missing end marker, and stops at the next directive', () => {
-    const input = md('<!-- M: x -->', 'text', '<!-- M: y -->', 'old', '<!-- /M -->');
+    const input = md('<!-- M: x -->', 'text', '<!-- M: y -->', 'old', '<!-- M end -->');
     const { content, results } = updateRegions(input, html, echo);
-    assert.equal(content, md('<!-- M: x -->', 'text', '<!-- M: y -->', 'y', '<!-- /M -->'));
+    assert.equal(content, md('<!-- M: x -->', 'text', '<!-- M: y -->', 'y', '<!-- M end -->'));
     assert.deepEqual(results.map(r => r.kind), ['invalid', 'updated']);
   });
 
@@ -115,31 +115,31 @@ describe('updateRegions: block', () => {
 
 describe('updateRegions: inline', () => {
   it('replaces text between markers on the same line', () => {
-    const input = '<p>v<!-- M: a -->1.0.0<!-- /M --> and <!-- M: b --><!-- /M --></p>';
+    const input = '<p>v<!-- M: a -->1.0.0<!-- M end --> and <!-- M: b --><!-- M end --></p>';
     const { content, results } = updateRegions(input, html, c => ok(`${c}-out\n`)());
-    assert.equal(content, '<p>v<!-- M: a -->a-out<!-- /M --> and <!-- M: b -->b-out<!-- /M --></p>');
+    assert.equal(content, '<p>v<!-- M: a -->a-out<!-- M end --> and <!-- M: b -->b-out<!-- M end --></p>');
     assert.deepEqual(results.map(r => r.kind === 'updated' && r.changed), [true, true]);
   });
 
   it('keeps the old text when the command fails', () => {
-    const input = '<span><!-- M: x -->old<!-- /M --></span>';
+    const input = '<span><!-- M: x -->old<!-- M end --></span>';
     assert.equal(updateRegions(input, html, () => ({ output: '', status: 1 })).content, input);
   });
 });
 
 describe('updateRegions: formats', () => {
   it('formats JSON output as a markdown table', () => {
-    const input = md('<!-- M format=md-table: x -->', '<!-- /M -->');
+    const input = md('<!-- M format=md-table: x -->', '<!-- M end -->');
     const json = JSON.stringify([{ code: 1001, text: 'a|b' }]);
     assert.equal(updateRegions(input, markdown, ok(json)).content,
-      md('<!-- M format=md-table: x -->', '| code | text |', '| ---- | ---- |', '| 1001 | a\\|b |', '<!-- /M -->'));
+      md('<!-- M format=md-table: x -->', '| code | text |', '| ---- | ---- |', '| 1001 | a\\|b |', '<!-- M end -->'));
   });
 
   it('reports bad options and non-JSON output', () => {
     const input = md(
-      '<!-- M format=csv: x -->', '<!-- /M -->',
-      '<!-- M region format=md-table: y -->', '<!-- /M -->',
-      '<!-- M paragraph: z -->', '<!-- /M -->',
+      '<!-- M format=csv: x -->', '<!-- M end -->',
+      '<!-- M region format=md-table: y -->', '<!-- M end -->',
+      '<!-- M paragraph: z -->', '<!-- M end -->',
     );
     const { content, results } = updateRegions(input, markdown, ok('not json'));
     assert.equal(content, input);
@@ -150,12 +150,12 @@ describe('updateRegions: formats', () => {
 
 describe('updateRegions: explicit modes', () => {
   it('region replaces up to the end marker, even when the content starts with a fence', () => {
-    const input = md('<!-- M region: x -->', '```', 'old', '```', 'more', '<!-- /M -->');
-    assert.equal(updateRegions(input, markdown, ok('new')).content, md('<!-- M region: x -->', 'new', '<!-- /M -->'));
+    const input = md('<!-- M region: x -->', '```', 'old', '```', 'more', '<!-- M end -->');
+    assert.equal(updateRegions(input, markdown, ok('new')).content, md('<!-- M region: x -->', 'new', '<!-- M end -->'));
   });
 
   it('codeblock requires a fence to follow', () => {
-    const input = md('<!-- M codeblock: x -->', 'text', '<!-- /M -->');
+    const input = md('<!-- M codeblock: x -->', 'text', '<!-- M end -->');
     const { content, results } = updateRegions(input, markdown, ok('new'));
     assert.equal(content, input);
     assert.match(results[0]?.kind === 'invalid' ? results[0].reason : '', /expected a fenced code block/);
@@ -177,9 +177,9 @@ describe('updateRegions: explicit modes', () => {
   });
 
   it('line ignores an end marker on its own line and works in html', () => {
-    const input = md('<!-- M line: x --><!-- /M -->', '<img src="v1.svg">', 'tail');
+    const input = md('<!-- M line: x --><!-- M end -->', '<img src="v1.svg">', 'tail');
     assert.equal(updateRegions(input, markdown, ok('<img src="v2.svg">')).content,
-      md('<!-- M line: x --><!-- /M -->', '<img src="v2.svg">', 'tail'));
+      md('<!-- M line: x --><!-- M end -->', '<img src="v2.svg">', 'tail'));
   });
 
   it('line rejects multi-line output and a missing or structural next line', () => {
@@ -187,7 +187,35 @@ describe('updateRegions: explicit modes', () => {
     assert.equal(multi.content, md('# M line: x', 'old'));
     assert.match(multi.results[0]?.kind === 'failed' ? multi.results[0].result.error ?? '' : '', /one line of output, got 2/);
     assert.equal(updateRegions('# M line: x', hash, ok('a')).results[0]?.kind, 'invalid');
-    assert.equal(updateRegions(md('# M line: x', '# /M'), hash, ok('a')).results[0]?.kind, 'invalid');
+    assert.equal(updateRegions(md('# M line: x', '# M end'), hash, ok('a')).results[0]?.kind, 'invalid');
     assert.equal(updateRegions(md('<!-- M line: x -->', '```', '```'), markdown, ok('a')).results[0]?.kind, 'invalid');
+  });
+});
+
+describe('updateRegions: start/end markers', () => {
+  it('accepts `start` with or without `region`', () => {
+    const content = md('<!-- M region start format=md-table: a -->', '<!-- M end -->', '<!-- M start: b -->', '<!-- M end -->');
+    assert.deepEqual(findDirectives(content, markdown).map(d => d.options), [
+      { mode: 'region', start: true, format: 'md-table' },
+      { start: true },
+    ]);
+    assert.equal(updateRegions(content.replace('format=md-table ', '').replace(' format=md-table', ''), markdown, echo).content,
+      md('<!-- M region start: a -->', 'a', '<!-- M end -->', '<!-- M start: b -->', 'b', '<!-- M end -->'));
+  });
+
+  it('never mistakes an end marker for a start on the same line', () => {
+    const input = '<p><!-- M region start: a -->1<!-- M end --> and <!-- M start: b -->2<!-- M end --></p>';
+    assert.equal(updateRegions(input, html, echo).content,
+      '<p><!-- M region start: a -->a<!-- M end --> and <!-- M start: b -->b<!-- M end --></p>');
+  });
+
+  it('matches end markers with any whitespace', () => {
+    const input = md('# M start: x', 'old', '#   M   end');
+    assert.equal(updateRegions(input, hash, ok('new')).content, md('# M start: x', 'new', '#   M   end'));
+  });
+
+  it('rejects `start` on modes without an end marker', () => {
+    const { results } = updateRegions(md('# M line start: x', 'old'), hash, ok('new'));
+    assert.match(results[0]?.kind === 'invalid' ? results[0].reason : '', /`line` directives have no end marker/);
   });
 });

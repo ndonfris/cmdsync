@@ -1,6 +1,6 @@
 import { globSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
-import type { ResolvedConfig } from './config.js';
+import { type ResolvedConfig, defaultEndMarker } from './config.js';
 import { type CommandResult, type RegionResult, updateRegions } from './regions.js';
 import { type InstallEvent, type InstallMode, createRunner } from './run.js';
 import { type CommentSyntax, type RegionSyntax, builtinSyntax } from './syntax.js';
@@ -52,7 +52,7 @@ export function syntaxResolver(config: ResolvedConfig): (file: string) => Region
     syntax: {
       ...fromComment(rule.comment, rule.fences ?? false),
       marker: rule.marker ?? config.marker,
-      endMarker: rule.endMarker ?? (rule.marker ? `/${rule.marker}` : config.endMarker),
+      endMarker: rule.endMarker ?? (rule.marker ? defaultEndMarker(rule.marker) : config.endMarker),
     },
   }));
 

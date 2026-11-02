@@ -1,0 +1,168 @@
+# Reusable workflow: after a release of the calling repository (A), regenerate
+# the cmdsync regions of other repositories (B, C, ...) and open, or update, a
+# pull request in each one. See "Updating other repositories on release" in
+# the README.
+name: sync-downstream
+
+on:
+  workflow_call:
+    inputs:
+      repositories:
+        description: 'JSON array of repositories to update, e.g. ''["your-org/B", "your-org/C"]'''
+        required: true
+        type: string
+      version:
+        description: Released version, exported to cmdsync as `version-variable`
+        required: true
+        type: string
+      version-variable:
+        description: Environment variable the version is exported as, for directives and `install` commands
+        default: UPSTREAM_VERSION
+        type: string
+      setup:
+        description: Shell commands run in each repository before cmdsync (e.g. `yarn install --frozen-lockfile`)
+        default: ''
+        type: string
+      args:
+        description: Extra cmdsync arguments (`--install` is always passed, so `install` commands pin the released version)
+        default: ''
+        type: string
+      working-directory:
+        description: Directory (inside each repository) to run cmdsync in
+        default: '.'
+        type: string
+      node-version:
+        description: Node.js version for cmdsync
+        default: '22'
+        type: string
+      base:
+        description: 'Base branch for the pull requests (default: each repository''s default branch)'
+        default: ''
+        type: string
+      branch:
+        description: 'Head branch for the pull requests (default: `cmdsync/<calling repository name>`); reused across releases, so one PR stays open and is updated'
+        default: ''
+        type: string
+      title:
+        description: 'Pull request title and commit message (default `docs: update for <repository> <version>`)'
+        default: ''
+        type: string
+      app-id:
+        description: GitHub App id; with the `app-private-key` secret, used to create a token for each repository instead of `token`
+        default: ''
+        type: string
+    secrets:
+      token:
+        description: Token with contents:write and pull-requests:write on every repository (a fine-grained PAT)
+        required: false
+      app-private-key:
+        description: Private key of the GitHub App given in `app-id`
+        required: false
+
+permissions: {}
+
+jobs:
+  sync:
+    name: ${{ matrix.repository }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        repository: ${{ fromJSON(inputs.repositories) }}
+    env:
+      REPOSITORY: ${{ matrix.repository }}
+      VERSION: ${{ inputs.version }}
+      UPSTREAM: ${{ github.repository }}
+      RELEASE_URL: ${{ github.event.release.html_url }}
+    steps:
+      - name: Create GitHub App token
+        id: app-token
+        if: inputs.app-id != ''
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ inputs.app-id }}
+          private-key: ${{ secrets.app-private-key }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ matrix.repository }}
+
+      - name: Resolve token
+        id: token
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+          PAT: ${{ secrets.token }}
+        run: |
+          token=${APP_TOKEN:-$PAT}
+          if [ -z "$token" ]; then
+            echo "::error title=sync-downstream::pass the \`token\` secret, or \`app-id\` with the \`app-private-key\` secret"
+            exit 1
+          fi
+          echo "::add-mask::$token"
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ matrix.repository }}
+          ref: ${{ inputs.base }}
+          token: ${{ steps.token.outputs.token }}
+          path: downstream
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Export ${{ inputs.version-variable }}
+        env:
+          NAME: ${{ inputs.version-variable }}
+        run: |
+          case "$NAME" in *[!A-Za-z0-9_]*|[0-9]*|'') echo "::error::invalid version-variable '$NAME'"; exit 1 ;; esac
+          echo "$NAME=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Setup
+        if: inputs.setup != ''
+        working-directory: downstream
+        run: ${{ inputs.setup }}
+
+      - name: Remember files changed by setup
+        working-directory: downstream
+        # e.g. a lockfile rewritten by `setup`: those changes stay out of the pull request
+        run: git diff --name-only > "$RUNNER_TEMP/setup-changes"
+
+      - name: Run cmdsync
+        id: cmdsync
+        uses: ndonfris/cmdsync@master
+        with:
+          mode: write
+          working-directory: downstream/${{ inputs.working-directory }}
+          args: --install ${{ inputs.args }}
+
+      - name: Open or update pull request
+        if: steps.cmdsync.outputs.changed == 'true'
+        working-directory: downstream
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          BASE: ${{ inputs.base }}
+          BRANCH: ${{ inputs.branch || format('cmdsync/{0}', github.event.repository.name) }}
+          TITLE: "${{ inputs.title || format('docs: update for {0} {1}', github.event.repository.name, inputs.version) }}"
+        run: |
+          base=${BASE:-$(gh repo view "$REPOSITORY" --json defaultBranchRef --jq .defaultBranchRef.name)}
+          body="Regenerated with [cmdsync](https://github.com/ndonfris/cmdsync) after \`$UPSTREAM\` released \`$VERSION\`."
+          [ -n "$RELEASE_URL" ] && body="$body"$'\n\n'"Release: $RELEASE_URL"
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -C "$BRANCH"
+          git diff --name-only | { grep -vxFf "$RUNNER_TEMP/setup-changes" || true; } | xargs -r -d '\n' git add --
+          if git diff --cached --quiet; then
+            echo "Only files changed by setup differ; nothing to commit"
+            exit 0
+          fi
+          git commit -m "$TITLE"
+          git push --force origin "$BRANCH"
+
+          pr=$(gh pr list --repo "$REPOSITORY" --head "$BRANCH" --state open --json url --jq '.[0].url')
+          if [ -n "$pr" ]; then
+            gh pr edit "$pr" --title "$TITLE" --body "$body"
+          else
+            pr=$(gh pr create --repo "$REPOSITORY" --base "$base" --head "$BRANCH" --title "$TITLE" --body "$body")
+          fi
+          printf '### %s\n\n%s\n' "$REPOSITORY" "$pr" >> "$GITHUB_STEP_SUMMARY"

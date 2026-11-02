@@ -520,6 +520,88 @@ The CLI behaves the same when called directly (annotations included):
 - run: npx cmdsync --check
 ```
 
+## Updating other repositories on release
+
+When repository **A** publishes a release, the docs in repositories **B** and **C** (READMEs, a docs site, an editor extension, ...) often need regenerating with A's new version. The reusable workflow [`sync-downstream.yml`](.github/workflows/sync-downstream.yml) does that from A's release workflow: for each repository, it checks it out, installs the released version of A, runs cmdsync, and opens a pull request.
+
+```mermaid
+flowchart LR
+  A["your-org/A<br/>release v2.0.0"] -->|sync-downstream.yml| B["your-org/B<br/>PR: docs: update for A v2.0.0"]
+  A -->|sync-downstream.yml| C["your-org/C<br/>PR: docs: update for A v2.0.0"]
+```
+
+### In A: call the workflow on release
+
+```yaml
+# your-org/A/.github/workflows/release-docs.yml
+name: release-docs
+on:
+  release:
+    types: [published]
+jobs:
+  docs:
+    uses: ndonfris/cmdsync/.github/workflows/sync-downstream.yml@master
+    with:
+      repositories: '["your-org/B", "your-org/C"]'
+      version: ${{ github.event.release.tag_name }}
+    secrets:
+      token: ${{ secrets.DOCS_PR_TOKEN }}
+```
+
+`GITHUB_TOKEN` can't push to other repositories, so the workflow needs either:
+
+- `token`: a fine-grained personal access token with **Contents: read and write** and **Pull requests: read and write** on B and C, or
+- `app-id` input + `app-private-key` secret: a GitHub App installed on B and C with the same permissions. A token scoped to each repository is created per job, and the PRs are authored by the app.
+
+### In B and C: a normal cmdsync config
+
+Each downstream repository keeps its own `cmdsync.json`, so it decides what gets regenerated, and also works locally and in its own CI. The released version is exported as `UPSTREAM_VERSION`, for `install` commands and directives:
+
+```json
+{
+  "shell": "bash",
+  "commands": ["A", "jq"],
+  "include": ["README.md", "docs/**/*.mdx"],
+  "install": {
+    "A": "npm install --global A@${UPSTREAM_VERSION#v}"
+  }
+}
+```
+
+````markdown
+Current version: <!-- CMDSYNC: A --version -->1.9.0<!-- /CMDSYNC -->
+
+<!-- CMDSYNC: A --help -->
+```text
+```
+````
+
+The workflow always passes `--install`, so `A` is installed at the released version even if the runner already has some version of it.
+
+### What the workflow does in each repository
+
+1. Checks out the repository (`base`, default: its default branch) and sets up Node.js.
+2. Exports `UPSTREAM_VERSION` (rename it with `version-variable`) and runs `setup` (e.g. `yarn install --frozen-lockfile`) if given. Files `setup` changes, such as a lockfile, are kept out of the PR.
+3. Runs `cmdsync --install` in `working-directory`.
+4. If anything changed, it commits to the `cmdsync/A` branch (`branch`), force pushes, and opens a PR, or updates the title/body of the PR that's already open. Each release updates the same PR instead of opening a new one.
+5. Writes the PR link to the job summary.
+
+Repositories are updated in parallel (a matrix with `fail-fast: false`), so one failing repository doesn't stop the others.
+
+| Input | Default | Description |
+| --- | --- | --- |
+| `repositories` | (required) | JSON array of `owner/name` |
+| `version` | (required) | Released version |
+| `version-variable` | `UPSTREAM_VERSION` | Environment variable the version is exported as |
+| `setup` | `''` | Shell commands run before cmdsync |
+| `args` | `''` | Extra cmdsync arguments (`--install` is always passed) |
+| `working-directory` | `.` | Directory to run cmdsync in |
+| `node-version` | `22` | Node.js version |
+| `base` | default branch | PR base branch |
+| `branch` | `cmdsync/<A's name>` | PR head branch |
+| `title` | `docs: update for <A's name> <version>` | PR title and commit message |
+| `app-id` | `''` | GitHub App id (with the `app-private-key` secret) |
+
 ## API
 
 ```ts

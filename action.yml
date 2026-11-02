@@ -10,10 +10,10 @@ inputs:
     description: '`check` fails the step when a region is out of date; `write` regenerates regions in place'
     default: check
   paths:
-    description: Space separated files/directories to process (default: the config's `include` globs)
+    description: 'Space separated files/directories to process (default: the config''s `include` globs)'
     default: ''
   config:
-    description: Path to a cmdsync.json or package.json (default: nearest one to `working-directory`)
+    description: 'Path to a cmdsync.json or package.json (default: nearest one to `working-directory`)'
     default: ''
   args:
     description: Extra arguments passed to the CLI (e.g. `--shell bash --command my-cli`)

@@ -520,6 +520,127 @@ The CLI behaves the same when called directly (annotations included):
 - run: npx cmdsync --check
 ```
 
+## Generating docs from your source code
+
+A directive can run any script, so the most reliable docs import the values they describe straight from your source. [`examples/diagnostic-codes`](examples/diagnostic-codes) is a language server whose diagnostics are defined in [`src/error-codes.ts`](examples/diagnostic-codes/src/error-codes.ts):
+
+```ts
+export namespace ErrorCodes {
+  export const missingEnd = 1001;
+  // ...
+  export const codes: { [k in CodeTypes]: CodeValueType } = {
+    [missingEnd]: {
+      severity: DiagnosticSeverity.Error,
+      code: missingEnd,
+      codeDescription: { href: 'https://example.com/docs/end' },
+      source: 'my-lsp',
+      message: 'missing closing token',
+    },
+    // ...
+  };
+}
+```
+
+A small script imports that module and prints one JSON row per code:
+
+<!-- CMDSYNC: cat examples/diagnostic-codes/scripts/error-codes.ts -->
+```ts
+/**
+ * Prints every diagnostic code from `src/error-codes.ts` as JSON rows, for
+ * cmdsync's `format=md-table` / `format=html-table`:
+ *
+ *   <!-- CMDSYNC[format=md-table]: tsx scripts/error-codes.ts --links -->
+ *   <!-- /CMDSYNC -->
+ *
+ * Importing the source (instead of hand-copying its values into the docs)
+ * means a new entry in `ErrorCodes.codes` shows up in every table on the next
+ * `cmdsync` run, and `cmdsync --check` fails CI until it does.
+ *
+ * Options:
+ *   --links               link each code to its documentation (markdown only)
+ *   --exclude-deprecated  leave out deprecated codes
+ */
+import { parseArgs } from 'node:util';
+import { DiagnosticSeverity, ErrorCodes } from '../src/error-codes.ts';
+
+const { values } = parseArgs({
+  options: {
+    links: { type: 'boolean', default: false },
+    'exclude-deprecated': { type: 'boolean', default: false },
+  },
+});
+
+const severityName = Object.fromEntries(Object.entries(DiagnosticSeverity).map(([name, value]) => [value, name]));
+
+const rows = Object.values(ErrorCodes.codes)
+  .filter(c => !(values['exclude-deprecated'] && c.isDeprecated))
+  .sort((a, b) => a.code - b.code)
+  .map(c => ({
+    Code: values.links ? `[\`${c.code}\`](${c.codeDescription.href})` : String(c.code),
+    Severity: severityName[c.severity],
+    Message: c.isDeprecated ? `${c.message} (deprecated)` : c.message,
+  }));
+
+console.log(JSON.stringify(rows, null, 2));
+```
+
+The docs then hold a region with `format=md-table` (or `format=html-table`, for `.mdx`):
+
+````markdown
+<!-- CMDSYNC[format=md-table]: tsx scripts/error-codes.ts --links -->
+<!-- /CMDSYNC -->
+````
+
+Running `cmdsync` fills it in:
+
+<!-- CMDSYNC[format=md-table]: tsx examples/diagnostic-codes/scripts/error-codes.ts --links -->
+| Code                                               | Severity    | Message |
+| -------------------------------------------------- | ----------- | ------- |
+| [`1001`](https://example.com/docs/end)             | Error       | missing closing token |
+| [`1002`](https://example.com/docs/end)             | Error       | extra closing token |
+| [`1003`](https://example.com/docs/arrays#index)    | Error       | arrays are 1-indexed |
+| [`2001`](https://example.com/docs/quotes)          | Warning     | variables are not expanded inside single quotes |
+| [`2002`](https://example.com/docs/functions#wraps) | Warning     | wrapper function used where its \| piped builtin works |
+| [`4004`](https://example.com/docs/scope)           | Warning     | unused local definition |
+| [`4006`](https://example.com/docs/functions)       | Error       | function is defined more than once in the same scope |
+| [`6001`](https://example.com/docs/env)             | Information | MY_LSP_LOG is renamed to MY_LSP_LOG_FILE (deprecated) |
+| [`9999`](https://example.com/docs/syntax)          | Error       | syntax error |
+<!-- /CMDSYNC -->
+
+Add a code to `ErrorCodes.codes` and the next `cmdsync` run adds its row to every table. Until it's run, `cmdsync --check` in CI (or [`--staged` in a pre-commit hook](#git-hooks)) catches the stale docs. The generated files are [`docs/diagnostics.md`](examples/diagnostic-codes/docs/diagnostics.md) and [`docs/diagnostics.mdx`](examples/diagnostic-codes/docs/diagnostics.mdx). Regenerate them with `yarn docs:examples`.
+
+Notes for your own scripts:
+
+- `tsx` runs TypeScript directly, so nothing has to be built first. List it in [`commands`](#recognized-commands) if you use an allowlist.
+- Keep the script free of side effects beyond printing: print JSON for the table formats, or the finished markdown/html when you need full control (a non-JSON format, grouping, headings per category).
+- Sort the rows yourself (by code above), so the output, and therefore the diff, is stable.
+- If the source imports runtime packages (a real `error-codes.ts` imports `DiagnosticSeverity` from `vscode-languageserver`), the project's dependencies must be installed wherever cmdsync runs.
+
+### Using it from other repositories
+
+Docs in other repositories (B, C) don't have A's source. Two ways to keep their tables in sync, both of which work with the [release workflow](#updating-other-repositories-on-release) below:
+
+1. **Ship the data with A.** Add the script's output to A's CLI (e.g. `A info --diagnostics --json`). B and C then only need the released binary, which their `install` config pins to the released version:
+
+   ```markdown
+   <!-- CMDSYNC[format=md-table]: A info --diagnostics --json -->
+   <!-- /CMDSYNC -->
+   ```
+
+2. **Check out A's source at the released tag** in the workflow's `setup`, and run the script from there:
+
+   ```yaml
+   with:
+     setup: |
+       git clone --depth 1 --branch "$UPSTREAM_VERSION" https://github.com/your-org/A ../A
+       (cd ../A && yarn install --frozen-lockfile)
+   ```
+
+   ```markdown
+   <!-- CMDSYNC[format=md-table]: npx tsx ../A/scripts/error-codes.ts --links -->
+   <!-- /CMDSYNC -->
+   ```
+
 ## Updating other repositories on release
 
 When repository **A** publishes a release, the docs in repositories **B** and **C** (READMEs, a docs site, an editor extension, ...) often need regenerating with A's new version. The reusable workflow [`sync-downstream.yml`](.github/workflows/sync-downstream.yml) does that from A's release workflow: for each repository, it checks it out, installs the released version of A, runs cmdsync, and opens a pull request.

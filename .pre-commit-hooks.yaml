@@ -1,0 +1,10 @@
+# https://pre-commit.com hook manifest. pre-commit stashes unstaged changes
+# and fails the commit when a hook modifies files, so this hook just writes
+# (no --staged): review and `git add` what it regenerated, then commit again.
+- id: cmdsync
+  name: cmdsync
+  description: Regenerate comment-delimited regions from the commands that declare them
+  entry: scripts/pre-commit-hook.sh
+  language: script
+  pass_filenames: false
+  always_run: true

@@ -1,5 +1,5 @@
-name: update-codeblocks
-description: Regenerate (or verify) markdown code blocks from the output of the commands declared above them
+name: cmdsync
+description: Regenerate (or verify) comment-delimited regions of any file from the output of the commands that declare them
 author: ndonfris
 branding:
   icon: file-text
@@ -7,13 +7,13 @@ branding:
 
 inputs:
   mode:
-    description: '`check` fails the step when a code block is out of date; `write` regenerates code blocks in place'
+    description: '`check` fails the step when a region is out of date; `write` regenerates regions in place'
     default: check
   paths:
-    description: Space separated markdown files/directories to process (default: the config's `include` globs)
+    description: Space separated files/directories to process (default: the config's `include` globs)
     default: ''
   config:
-    description: Path to an update-codeblocks.json or package.json (default: nearest one to `working-directory`)
+    description: Path to a cmdsync.json or package.json (default: nearest one to `working-directory`)
     default: ''
   args:
     description: Extra arguments passed to the CLI (e.g. `--shell bash --command my-cli`)
@@ -24,7 +24,7 @@ inputs:
 
 outputs:
   changed:
-    description: '`true` when any code block was (or, in check mode, would be) changed'
+    description: '`true` when any region was (or, in check mode, would be) changed'
     value: ${{ steps.run.outputs.changed }}
   failed:
     description: Number of directives whose command failed
@@ -33,13 +33,13 @@ outputs:
 runs:
   using: composite
   steps:
-    - name: Install update-codeblocks
+    - name: Install cmdsync
       shell: bash
       run: |
         npm install --no-save --no-package-lock --no-audit --no-fund --prefix "$GITHUB_ACTION_PATH"
         npm run --prefix "$GITHUB_ACTION_PATH" build
 
-    - name: Run update-codeblocks
+    - name: Run cmdsync
       id: run
       shell: bash
       working-directory: ${{ inputs.working-directory }}
@@ -54,7 +54,7 @@ runs:
         case "$INPUT_MODE" in
           check) args+=(--check) ;;
           write) ;;
-          *) echo "::error title=update-codeblocks::invalid mode '$INPUT_MODE' (expected check|write)"; exit 2 ;;
+          *) echo "::error title=cmdsync::invalid mode '$INPUT_MODE' (expected check|write)"; exit 2 ;;
         esac
         [ -n "$INPUT_CONFIG" ] && args+=(--config "$INPUT_CONFIG")
         # word-split args and paths on purpose (globbing disabled above)

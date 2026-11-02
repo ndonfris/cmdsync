@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { basename } from 'node:path';
-import type { CommandResult } from './codeblocks.js';
+import type { CommandResult } from './regions.js';
 import type { ResolvedConfig } from './config.js';
 
 /**

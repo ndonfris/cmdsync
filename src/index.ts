@@ -1,8 +1,8 @@
 import { globSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import type { ResolvedConfig } from './config.js';
-import { type RegionResult, updateRegions } from './regions.js';
-import { runCommand } from './run.js';
+import { type CommandResult, type RegionResult, updateRegions } from './regions.js';
+import { type InstallEvent, type InstallMode, createRunner } from './run.js';
 import { type CommentSyntax, type RegionSyntax, builtinSyntax } from './syntax.js';
 
 export * from './config.js';
@@ -62,10 +62,14 @@ export function syntaxResolver(config: ResolvedConfig): (file: string) => Region
   };
 }
 
-export function processFile(file: string, syntax: RegionSyntax, config: ResolvedConfig, options: { write: boolean; }): FileResult {
+export function processFile(
+  file: string,
+  syntax: RegionSyntax,
+  options: { write: boolean; run: (command: string) => CommandResult; },
+): FileResult {
   const original = readFileSync(file, 'utf-8');
   if (!original.includes(syntax.marker)) return { file, changed: false, written: false, regions: [] };
-  const { content, results } = updateRegions(original, syntax, cmd => runCommand(cmd, config));
+  const { content, results } = updateRegions(original, syntax, options.run);
   const changed = content !== original;
   if (changed && options.write) writeFileSync(file, content, 'utf-8');
   return { file, changed, written: changed && options.write, regions: results };
@@ -73,16 +77,23 @@ export function processFile(file: string, syntax: RegionSyntax, config: Resolved
 
 export function run(
   config: ResolvedConfig,
-  options: { paths?: string[]; write?: boolean; onFile?: (result: FileResult) => void; } = {},
+  options: {
+    paths?: string[];
+    write?: boolean;
+    install?: InstallMode;
+    onFile?: (result: FileResult) => void;
+    onInstall?: (event: InstallEvent) => void;
+  } = {},
 ): FileResult[] {
   const syntaxFor = syntaxResolver(config);
+  const runner = createRunner(config, { install: options.install, onInstall: options.onInstall });
   return collectFiles(config, options.paths)
     .map(file => {
       const syntax = syntaxFor(file);
       if (!syntax) {
         throw new Error(`No comment syntax known for ${displayPath(file, config.root)}: add a "syntax" rule to the config or pass --comment`);
       }
-      return processFile(file, syntax, config, { write: options.write ?? true });
+      return processFile(file, syntax, { write: options.write ?? true, run: runner });
     })
     .filter(result => result.regions.length > 0)
     .map(result => (options.onFile?.(result), result));

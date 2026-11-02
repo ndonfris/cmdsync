@@ -33,6 +33,12 @@ export interface UserConfig {
    * Omit (or leave empty) to allow any command.
    */
   commands?: string[];
+  /**
+   * How to install a binary that directives run, keyed by binary name:
+   * `{ "my-cli": "npm install -g my-cli" }`. Runs with the same shell, cwd and
+   * env as directives, when a directive needs the binary and it isn't on `PATH`.
+   */
+  install?: Record<string, string>;
   /** Globs (relative to the config root) of files to scan */
   include?: string[];
   /** Globs (relative to the config root) to skip */
@@ -61,6 +67,7 @@ export const DEFAULT_CONFIG = {
   marker: 'CMDSYNC',
   shell: 'sh',
   commands: [],
+  install: {},
   include: ['**/*.md', '**/*.mdx'],
   exclude: ['**/node_modules/**', '**/.git/**'],
   syntax: [],
@@ -109,6 +116,7 @@ export function validateConfig(value: unknown, source: string): UserConfig {
     endMarker: isEndMarker,
     shell: v => typeof v === 'string' && v.length > 0,
     commands: isStringArray,
+    install: v => isObject(v) && Object.values(v).every(e => typeof e === 'string' && e.length > 0),
     include: isStringArray,
     exclude: isStringArray,
     syntax: v => Array.isArray(v) && v.every(isSyntaxRule),

@@ -2,7 +2,7 @@
 import { appendFileSync, readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import { type UserConfig, resolveConfig } from './config.js';
-import { type FileResult, displayPath, run } from './index.js';
+import { type FileResult, type InstallEvent, displayPath, run } from './index.js';
 
 const HELP = `\
 Usage: cmdsync [options] [paths...]
@@ -31,6 +31,10 @@ Options:
                            (overrides config and the built-in syntax table)
   -s, --shell <bin>        Shell used to run commands (overrides config)
       --command <bin>      Allowed command binary, repeatable (overrides config)
+      --install            Run the config's "install" command for every binary
+                           a directive uses, even if it's already on PATH
+      --no-install         Never run "install" commands (default: only for
+                           binaries that aren't on PATH)
   -q, --quiet              Only print errors
   -h, --help               Show this help
   -v, --version            Show version
@@ -57,6 +61,7 @@ function main(argv: string[]): number {
   const { values, positionals } = parseArgs({
     args: argv,
     allowPositionals: true,
+    allowNegative: true,
     options: {
       config: { type: 'string', short: 'c' },
       check: { type: 'boolean', default: false },
@@ -66,6 +71,7 @@ function main(argv: string[]): number {
       comment: { type: 'string' },
       shell: { type: 'string', short: 's' },
       command: { type: 'string', multiple: true },
+      install: { type: 'boolean' },
       quiet: { type: 'boolean', short: 'q', default: false },
       help: { type: 'boolean', short: 'h', default: false },
       version: { type: 'boolean', short: 'v', default: false },
@@ -119,7 +125,14 @@ function main(argv: string[]): number {
     }
   };
 
-  const results = run(config, { paths: positionals, write, onFile: report });
+  const onInstall = ({ bin, command, result }: InstallEvent) => {
+    if (result.status === 0 && !result.error) return log(`installed ${bin}: ${command}`);
+    console.error(`install failed  ${bin}: ${command}\n            ${result.error ?? `exited with status ${result.status}`}`);
+    if (result.output) console.error(result.output.trimEnd().replace(/^/gm, '            │ '));
+  };
+
+  const install = values.install === undefined ? 'missing' : values.install ? 'always' : 'never';
+  const results = run(config, { paths: positionals, write, install, onFile: report, onInstall });
   const regions = results.flatMap(r => r.regions);
   const failed = regions.filter(r => r.kind !== 'updated').length;
   const stale = results.filter(r => r.changed);

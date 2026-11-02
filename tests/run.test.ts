@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
 import { resolveConfig } from '../src/config.js';
 import { run } from '../src/index.js';
-import { commandBinaries, unrecognizedBinaries } from '../src/run.js';
+import { commandBinaries, createRunner, onPath, unrecognizedBinaries } from '../src/run.js';
 
 describe('commandBinaries', () => {
   it('collects the first word of every command segment', () => {
@@ -54,5 +54,61 @@ describe('run', () => {
     assert.throws(() => run(resolveConfig({ cwd: dir })), /No comment syntax known for notes\.txt/);
     run(resolveConfig({ cwd: dir, overrides: { comment: ['//'] } }));
     assert.equal(readFileSync(join(dir, 'notes.txt'), 'utf-8'), '// CMDSYNC: echo hi\nhi\n// /CMDSYNC\n');
+  });
+});
+
+describe('createRunner', () => {
+  /** A config whose `PATH` starts with an empty `bin/`, and an install that adds `tool` there (logging each install) */
+  const setup = (install: Record<string, string> = {}) => {
+    const dir = mkdtempSync(join(tmpdir(), 'cmdsync-'));
+    mkdirSync(join(dir, 'bin'));
+    const config = resolveConfig({
+      cwd: dir,
+      overrides: {
+        env: { PATH: `${join(dir, 'bin')}:${process.env.PATH}` },
+        install: { tool: `echo x >> installs.log && printf '#!/bin/sh\\necho tool-out\\n' > bin/tool && chmod +x bin/tool`, ...install },
+      },
+    });
+    const installs = () => readFileSync(join(dir, 'installs.log'), 'utf-8').split('\n').filter(Boolean).length;
+    return { dir, config, installs };
+  };
+
+  it('installs a missing binary once, then runs the command', () => {
+    const { config, installs } = setup();
+    const events: string[] = [];
+    const runner = createRunner(config, { onInstall: e => events.push(e.bin) });
+    assert.deepEqual(runner('tool | cat'), { output: 'tool-out\n', status: 0 });
+    assert.deepEqual(runner('tool'), { output: 'tool-out\n', status: 0 });
+    assert.equal(installs(), 1);
+    assert.deepEqual(events, ['tool']);
+  });
+
+  it('skips installing binaries already on PATH, unless mode is "always"', () => {
+    const { config, installs } = setup();
+    createRunner(config)('tool');
+    createRunner(config)('tool');
+    assert.equal(installs(), 1);
+    createRunner(config, { install: 'always' })('tool');
+    assert.equal(installs(), 2);
+  });
+
+  it('never installs in "never" mode', () => {
+    const { config } = setup();
+    assert.notEqual(createRunner(config, { install: 'never' })('tool').status, 0);
+  });
+
+  it('fails directives whose install fails or does not put the binary on PATH', () => {
+    const { config } = setup({ broken: 'exit 3', ghost: 'true' });
+    const runner = createRunner(config);
+    assert.match(runner('broken').error ?? '', /installing broken failed: `exit 3` exited with status 3/);
+    assert.match(runner('echo a | ghost').error ?? '', /ghost is still not on PATH/);
+  });
+});
+
+describe('onPath', () => {
+  it('finds executables on PATH and relative paths', () => {
+    assert.equal(onPath('sh'), true);
+    assert.equal(onPath('definitely-not-a-binary-xyz'), false);
+    assert.equal(onPath('./missing', process.env, tmpdir()), false);
   });
 });

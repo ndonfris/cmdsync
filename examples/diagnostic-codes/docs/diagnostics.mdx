@@ -1,0 +1,24 @@
+---
+title: Diagnostics
+---
+
+{/* generated from src/error-codes.ts: run `cmdsync` instead of editing the table */}
+
+{/* CMDSYNC[format=html-table]: tsx scripts/error-codes.ts */}
+<table>
+  <thead>
+    <tr><th>Code</th><th>Severity</th><th>Message</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>1001</td><td>Error</td><td>missing closing token</td></tr>
+    <tr><td>1002</td><td>Error</td><td>extra closing token</td></tr>
+    <tr><td>1003</td><td>Error</td><td>arrays are 1-indexed</td></tr>
+    <tr><td>2001</td><td>Warning</td><td>variables are not expanded inside single quotes</td></tr>
+    <tr><td>2002</td><td>Warning</td><td>wrapper function used where its | piped builtin works</td></tr>
+    <tr><td>4004</td><td>Warning</td><td>unused local definition</td></tr>
+    <tr><td>4006</td><td>Error</td><td>function is defined more than once in the same scope</td></tr>
+    <tr><td>6001</td><td>Information</td><td>MY_LSP_LOG is renamed to MY_LSP_LOG_FILE (deprecated)</td></tr>
+    <tr><td>9999</td><td>Error</td><td>syntax error</td></tr>
+  </tbody>
+</table>
+{/* /CMDSYNC */}

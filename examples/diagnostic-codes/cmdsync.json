@@ -1,0 +1,5 @@
+{
+  "$schema": "../../cmdsync.schema.json",
+  "include": ["docs/*.md", "docs/*.mdx"],
+  "commands": ["tsx"]
+}

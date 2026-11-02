@@ -112,3 +112,15 @@ describe('onPath', () => {
     assert.equal(onPath('./missing', process.env, tmpdir()), false);
   });
 });
+
+describe('examples', () => {
+  it('examples/diagnostic-codes docs are in sync with its source', () => {
+    const config = resolveConfig({ configPath: join(import.meta.dirname, '..', 'examples', 'diagnostic-codes', 'cmdsync.json') });
+    const results = run({ ...config, env: { PATH: `${join(import.meta.dirname, '..', 'node_modules', '.bin')}:${process.env.PATH}` } }, { write: false });
+    assert.equal(results.length, 2);
+    for (const { file, changed, regions } of results) {
+      assert.deepEqual(regions.map(r => r.kind), regions.map(() => 'updated'), file);
+      assert.equal(changed, false, `${file} is out of date: run \`yarn docs:examples\``);
+    }
+  });
+});

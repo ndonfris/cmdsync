@@ -1,5 +1,5 @@
 /**
- * Built-in output formats, selected per directive: `<!-- CMDSYNC[format=md-table]: cmd -->`.
+ * Built-in output formats, selected per directive: `<!-- CMDSYNC region format=md-table: cmd -->`.
  * Each turns the command's stdout into the text written to the region.
  */
 

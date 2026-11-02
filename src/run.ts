@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
-import { basename } from 'node:path';
+import { accessSync, constants, statSync } from 'node:fs';
+import { basename, delimiter, join, resolve } from 'node:path';
 import type { CommandResult } from './regions.js';
 import type { ResolvedConfig } from './config.js';
 
@@ -23,6 +24,20 @@ export function unrecognizedBinaries(command: string, allowed: string[]): string
   return commandBinaries(command).filter(bin => !known.has(bin));
 }
 
+/** Run `command` with the config's shell, cwd, env and timeout */
+function spawn(command: string, config: ResolvedConfig, timeout = config.timeout): CommandResult {
+  const { stdout, stderr, status, error } = spawnSync(config.shell, ['-c', command], {
+    cwd: config.cwd,
+    env: { ...process.env, ...config.env },
+    encoding: 'utf-8',
+    timeout,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  if (error) return { output: stdout ?? '', status: status ?? 1, error: error.message };
+  return { output: status === 0 ? stdout : (stderr || stdout), status: status ?? 1 };
+}
+
 export function runCommand(command: string, config: ResolvedConfig): CommandResult {
   const rejected = unrecognizedBinaries(command, config.commands);
   if (rejected.length > 0) {
@@ -32,15 +47,78 @@ export function runCommand(command: string, config: ResolvedConfig): CommandResu
       error: `unrecognized command(s): ${rejected.join(', ')} (allowed: ${config.commands.join(', ')})`,
     };
   }
+  return spawn(command, config);
+}
 
-  const { stdout, stderr, status, error } = spawnSync(config.shell, ['-c', command], {
-    cwd: config.cwd,
-    env: { ...process.env, ...config.env },
-    encoding: 'utf-8',
-    timeout: config.timeout,
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
+/** Whether `bin` is an executable on `PATH` (or, when it contains a `/`, relative to `cwd`) */
+export function onPath(bin: string, env: NodeJS.ProcessEnv = process.env, cwd = process.cwd()): boolean {
+  const executable = (file: string) => {
+    try {
+      accessSync(file, constants.X_OK);
+      return statSync(file).isFile();
+    } catch {
+      return false;
+    }
+  };
+  if (bin.includes('/')) return executable(resolve(cwd, bin));
+  const extensions = process.platform === 'win32' ? ['', ...(env.PATHEXT ?? '.EXE;.CMD;.BAT').split(';')] : [''];
+  return (env.PATH ?? '').split(delimiter).filter(Boolean)
+    .some(dir => extensions.some(ext => executable(join(dir, bin + ext))));
+}
 
-  if (error) return { output: stdout ?? '', status: status ?? 1, error: error.message };
-  return { output: status === 0 ? stdout : (stderr || stdout), status: status ?? 1 };
+/**
+ * - `missing`: install a binary the first time a directive needs it and it isn't on `PATH`
+ * - `always`: install every binary a directive needs once per run, even if it's already there
+ * - `never`: don't install anything
+ */
+export type InstallMode = 'missing' | 'always' | 'never';
+
+/** Installs can download and build, so they get far longer than a command's `timeout` */
+export const INSTALL_TIMEOUT = 10 * 60_000;
+
+export interface InstallEvent {
+  bin: string;
+  command: string;
+  result: CommandResult;
+}
+
+/**
+ * `runCommand`, but first runs the config's `install` command for each binary
+ * of the directive that needs one. Each binary is installed at most once per
+ * runner, and a failed install fails every directive that uses that binary.
+ */
+export function createRunner(
+  config: ResolvedConfig,
+  options: { install?: InstallMode; onInstall?: (event: InstallEvent) => void; } = {},
+): (command: string) => CommandResult {
+  const mode = options.install ?? 'missing';
+  const env = { ...process.env, ...config.env };
+  const installed = new Map<string, CommandResult>();
+
+  const install = (bin: string): CommandResult | undefined => {
+    const command = config.install[bin];
+    if (mode === 'never' || !command) return undefined;
+    if (installed.has(bin)) return installed.get(bin);
+    if (mode === 'missing' && onPath(bin, env, config.cwd)) return undefined;
+
+    let result = spawn(command, config, INSTALL_TIMEOUT);
+    if (result.status === 0 && !result.error && !onPath(bin, env, config.cwd)) {
+      result = { ...result, status: 1, error: `\`${command}\` succeeded, but ${bin} is still not on PATH` };
+    }
+    installed.set(bin, result);
+    options.onInstall?.({ bin, command, result });
+    return result;
+  };
+
+  return command => {
+    const rejected = unrecognizedBinaries(command, config.commands);
+    if (rejected.length > 0) return runCommand(command, config);
+    for (const bin of new Set(commandBinaries(command))) {
+      const result = install(bin);
+      if (result && (result.status !== 0 || result.error)) {
+        return { ...result, status: result.status || 1, error: `installing ${bin} failed: ${result.error ?? `\`${config.install[bin]}\` exited with status ${result.status}`}` };
+      }
+    }
+    return spawn(command, config);
+  };
 }

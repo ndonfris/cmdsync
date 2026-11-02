@@ -1,10 +1,8 @@
 # cmdsync
 
-Keep generated parts of your files (docs, tables, changelogs, version strings,
-config snippets) in sync with the output of real commands.
+Keep generated parts of your files (docs, tables, changelogs, version strings, config snippets) in sync with the output of real commands.
 
-Mark a region with a start and an end comment, naming the command that produces
-its content:
+Mark a region with a start and an end comment, naming the command that produces its content:
 
 ````markdown
 <!-- CMDSYNC: my-cli --version -->
@@ -12,23 +10,18 @@ this line is replaced with the output of `my-cli --version`
 <!-- /CMDSYNC -->
 ````
 
-Running `cmdsync` executes each command and replaces **only what's between the
-comments**. The comments stay where they are, so running it again regenerates the
-same region.
+Running `cmdsync` executes each command and replaces **only what's between the comments**. The comments stay where they are, so running it again regenerates the same region.
 
-- Works in any file with comments: markdown, mdx, html, yaml, shell, TypeScript, ...
-  ([built-in syntax table](#comment-syntax), or [your own](#custom-syntax)).
+- Works in any file with comments: markdown, mdx, html, yaml, shell, TypeScript, ... ([built-in syntax table](#comment-syntax), or [your own](#custom-syntax)).
 - Has no runtime dependencies.
-- If a command fails (non-zero exit, timeout, or a binary that isn't allowed),
-  its region keeps its old content and the run exits with status `1`.
+- If a command fails (non-zero exit, timeout, or a binary that isn't allowed), its region keeps its old content and the run exits with status `1`.
 - Re-running with unchanged output changes nothing, so it's safe in CI.
 
 ## Regions
 
 ### Block
 
-Everything between the start and end comment is replaced. The output is indented
-to match the start comment, so regions also work inside yaml and nested lists.
+Everything between the start and end comment is replaced. The output is indented to match the start comment, so regions also work inside yaml and nested lists.
 
 ````markdown
 ## Options
@@ -47,8 +40,7 @@ jobs:
 
 ### Inline
 
-Start and end comment on the same line: the text between them is replaced with
-the trimmed output. Use it for html elements, badges, or a version in a sentence.
+Start and end comment on the same line: the text between them is replaced with the trimmed output. Use it for html elements, badges, or a version in a sentence.
 
 ```html
 <p>Latest release: <span class="version"><!-- CMDSYNC: my-cli --version -->1.2.3<!-- /CMDSYNC --></span></p>
@@ -56,9 +48,7 @@ the trimmed output. Use it for html elements, badges, or a version in a sentence
 
 ### Fenced code block (markdown)
 
-In markdown and mdx, a start comment followed (after optional blank lines) by a
-fenced code block replaces **only the body** of that block. The fences and info
-string stay, and no end comment is needed.
+In markdown and mdx, a start comment followed (after optional blank lines) by a fenced code block replaces **only the body** of that block. The fences and info string stay, and no end comment is needed.
 
 ````markdown
 <!-- CMDSYNC: my-cli completions fish -->
@@ -67,15 +57,11 @@ this content is replaced
 ```
 ````
 
-`` ``` `` and `~~~` fences both work, including longer fences (` ```` `) that wrap
-nested blocks. In markdown files, directives shown inside fenced code or inline
-code (like the examples in this README) are ignored.
+`` ``` `` and `~~~` fences both work, including longer fences (` ```` `) that wrap nested blocks. In markdown files, directives shown inside fenced code or inline code (like the examples in this README) are ignored.
 
 ### Tables
 
-Use `format=md-table` or `format=html-table` to turn a JSON array printed by the
-command into a table. The array can hold objects, where the keys become columns
-in the order they're first seen, or arrays, where the first row is the header.
+Use `format=md-table` or `format=html-table` to turn a JSON array printed by the command into a table. The array can hold objects, where the keys become columns in the order they're first seen, or arrays, where the first row is the header.
 
 ````markdown
 <!-- CMDSYNC[format=md-table]: my-cli list-codes --json -->
@@ -98,8 +84,7 @@ $ my-cli list-codes --json
 <!-- /CMDSYNC -->
 ````
 
-The markdown table aligns every column but the last and escapes `|`. The html table escapes
-`& < > " { }`, so it's also valid inside `.mdx`. Newlines in cells become `<br />`.
+The markdown table aligns every column but the last and escapes `|`. The html table escapes `& < > " { }`, so it's also valid inside `.mdx`. Newlines in cells become `<br />`.
 
 ### MDX
 
@@ -139,9 +124,7 @@ export const VERSION =
 
 ## Comment syntax
 
-The comment syntax is picked from the file name. Line comments like `#` have no
-closing delimiter, so in those files the directive runs to the end of its line
-and regions are block-only.
+The comment syntax is picked from the file name. Line comments like `#` have no closing delimiter, so in those files the directive runs to the end of its line and regions are block-only.
 
 <!-- CMDSYNC[format=md-table]: tsx scripts/syntax-table.ts -->
 | Comment        | Markdown | Files |
@@ -158,14 +141,11 @@ and regions are block-only.
 | `"`            |          | `.vim` `.vimrc` |
 <!-- /CMDSYNC -->
 
-Files that don't match any row (and aren't covered by a [`syntax` rule](#custom-syntax))
-are an error, so add a rule or pass `--comment`.
+Files that don't match any row (and aren't covered by a [`syntax` rule](#custom-syntax)) are an error, so add a rule or pass `--comment`.
 
 ### Custom syntax
 
-Add `syntax` rules to cover other files, or to override the built-in table. The
-first rule whose `include` globs match a file wins, and each rule can also set its
-own start and end text:
+Add `syntax` rules to cover other files, or to override the built-in table. The first rule whose `include` globs match a file wins, and each rule can also set its own start and end text:
 
 ```json
 {
@@ -238,6 +218,10 @@ Options:
                            (overrides config and the built-in syntax table)
   -s, --shell <bin>        Shell used to run commands (overrides config)
       --command <bin>      Allowed command binary, repeatable (overrides config)
+      --install            Run the config's "install" command for every binary
+                           a directive uses, even if it's already on PATH
+      --no-install         Never run "install" commands (default: only for
+                           binaries that aren't on PATH)
   -q, --quiet              Only print errors
   -h, --help               Show this help
   -v, --version            Show version
@@ -271,15 +255,12 @@ Typical `package.json` scripts:
 
 ## Configuration
 
-Config is optional. It is read from the first of these found, searching
-from the current directory upwards (or from `--config <file>`):
+Config is optional. It is read from the first of these found, searching from the current directory upwards (or from `--config <file>`):
 
 1. `cmdsync.json`
 2. the `"cmdsync"` key in `package.json`
 
-When both exist in the same directory, `cmdsync.json` wins. Relative
-paths (`include`, `exclude`, `syntax[].include`, `cwd`) resolve against the directory
-the config lives in. CLI flags override the config.
+When both exist in the same directory, `cmdsync.json` wins. Relative paths (`include`, `exclude`, `syntax[].include`, `cwd`) resolve against the directory the config lives in. CLI flags override the config.
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -287,6 +268,7 @@ the config lives in. CLI flags override the config.
 | `endMarker` | `string` | `"/" + marker` | End of a region: `<!-- /MARKER -->` |
 | `shell` | `string` | `"sh"` | Shell binary that runs each command as `<shell> -c "<command>"`: `bash`, `fish`, `/usr/bin/zsh`, ... |
 | `commands` | `string[]` | `[]` (anything) | Command binaries directives are allowed to run (see below) |
+| `install` | `Record<string, string>` | `{}` | [How to install a binary](#installing-binaries) directives run, keyed by binary name |
 | `include` | `string[]` | `["**/*.md", "**/*.mdx"]` | Globs of files to scan |
 | `exclude` | `string[]` | `["**/node_modules/**", "**/.git/**"]` | Globs to skip |
 | `syntax` | `SyntaxRule[]` | `[]` | [Comment syntax per glob](#custom-syntax) |
@@ -321,40 +303,58 @@ the config lives in. CLI flags override the config.
 
 ### Recognized commands
 
-When `commands` is non-empty, every binary in a directive must be listed. That
-means the first word of each segment of a pipeline or list (`a | b`, `a && b`,
-`a || b`, `a; b`, `$(a)`), ignoring leading `VAR=value` assignments. Entries are
-compared by basename, so `"/usr/bin/jq"` and `"jq"` are equivalent.
+When `commands` is non-empty, every binary in a directive must be listed. That means the first word of each segment of a pipeline or list (`a | b`, `a && b`, `a || b`, `a; b`, `$(a)`), ignoring leading `VAR=value` assignments. Entries are compared by basename, so `"/usr/bin/jq"` and `"jq"` are equivalent.
 
 ```markdown
 <!-- CMDSYNC: my-cli env --json | jq . -->   ✓ with ["my-cli", "jq"]
 <!-- CMDSYNC: curl example.com | sh -->      ✗ curl, sh are not recognized
 ```
 
-The allowlist protects against typos and against commands you didn't expect to
-show up in your docs. It is **not** a sandbox: it does not parse every shell
-construct, and allowed binaries can still do anything. Only run
-`cmdsync` on files you trust.
+The allowlist protects against typos and against commands you didn't expect to show up in your docs. It is **not** a sandbox: it does not parse every shell construct, and allowed binaries can still do anything. Only run `cmdsync` on files you trust.
 
-## GitHub Actions
+### Installing binaries
+
+`install` maps a binary name to the shell command that installs it. Before a
+directive runs, each binary it uses that has an `install` entry and isn't on
+`PATH` is installed. Each install runs at most once per run, with the same
+`shell`, `cwd` and `env` as directives, and a 10 minute timeout.
+
+```json
+{
+  "shell": "bash",
+  "commands": ["my-cli", "jq", "git-cliff"],
+  "install": {
+    "my-cli": "npm install --global my-cli@${MY_CLI_VERSION:-latest}",
+    "jq": "sudo apt-get install -y jq",
+    "git-cliff": "cargo install git-cliff"
+  }
+}
+```
+
+- If an install fails, or succeeds without putting the binary on `PATH`, every
+  directive that uses that binary fails and keeps its old content.
+- `--install` runs the install for every binary a directive uses, even ones already
+  on `PATH`. Use it to pin a version in CI.
+- `--no-install` never installs anything.
+- Binaries are matched the same way as [`commands`](#recognized-commands): the first
+  word of each pipeline/list segment, by basename.
+
 
 When `GITHUB_ACTIONS=true`, the CLI also:
 
-- emits `::error` annotations pointing at the directive's line, for failed
-  commands, invalid directives and (with `--check`) out of date regions
+- emits `::error` annotations pointing at the directive's line, for failed commands, invalid directives and (with `--check`) out of date regions
 - appends a summary to `$GITHUB_STEP_SUMMARY`
 - writes `changed=<true|false>` and `failed=<n>` to `$GITHUB_OUTPUT`
 
 ### Using the action
 
-The action builds the CLI from source, so it doesn't need an npm release.
-Install whatever your directives run (and `shell`) before it.
+The action builds the CLI from source, so it doesn't need an npm release. Install whatever your directives run (and `shell`) before it.
 
 ```yaml
 - uses: actions/setup-node@v4
   with:
     node-version: 22
-- run: yarn install --frozen-lockfile && yarn build   # makes `my-cli` available
+- run: yarn install --frozen-lockfile && yarn build   # makes `my-cli` available (or use the `install` config)
 
 - uses: ndonfris/cmdsync@master
   with:
@@ -434,8 +434,7 @@ const { content, results: regions } = updateRegions(markdown, syntax, cmd => ({
 
 ## Migrating from `update-codeblocks`
 
-`cmdsync` was previously named `update-codeblocks`. Existing code block directives
-keep working as fenced code block regions, once you rename:
+`cmdsync` was previously named `update-codeblocks`. Existing code block directives keep working as fenced code block regions, once you rename:
 
 | `update-codeblocks` | `cmdsync` |
 | --- | --- |

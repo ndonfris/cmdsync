@@ -193,6 +193,7 @@ Requires Node.js `>=22.17`.
 <!-- CMDSYNC: tsx src/cli.ts --help -->
 ```text
 Usage: cmdsync [options] [paths...]
+       cmdsync completions <bash|zsh|fish|nu>
 
 Replace comment-delimited regions of any file with the output of the
 command named in the start comment:
@@ -207,6 +208,9 @@ the body of that block, and no end comment is needed.
 Arguments:
   paths                    Files or directories to process
                            (default: the config's "include" globs)
+
+Commands:
+  completions <shell>      Print a completion script for bash, zsh, fish or nu
 
 Options:
   -c, --config <file>      Config file (cmdsync.json or package.json)
@@ -252,6 +256,26 @@ Typical `package.json` scripts:
   }
 }
 ```
+
+### Shell completions
+
+`cmdsync completions <shell>` prints a completion script for `bash`, `zsh`, `fish` or `nu`. The scripts are generated from the same option table the CLI parses, so they always match the installed version. POSIX `sh` has no completion system, so it isn't supported.
+
+```fish
+# bash: in ~/.bashrc
+eval "$(cmdsync completions bash)"
+
+# zsh: in ~/.zshrc (after compinit), or save it as _cmdsync somewhere in $fpath
+eval "$(cmdsync completions zsh)"
+
+# fish
+cmdsync completions fish > ~/.config/fish/completions/cmdsync.fish
+
+# nushell: save the module, then add `use completions/cmdsync.nu *` to config.nu
+cmdsync completions nu | save -f ($nu.default-config-dir | path join completions cmdsync.nu)
+```
+
+A path literally named `completions` must be written as `./completions`.
 
 ## Configuration
 

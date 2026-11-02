@@ -2,10 +2,13 @@
 import { appendFileSync, readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import { type UserConfig, resolveConfig } from './config.js';
+import { completionScript } from './completions.js';
 import { type FileResult, type InstallEvent, displayPath, run } from './index.js';
+import { PARSE_OPTIONS, SHELLS, type Shell } from './options.js';
 
 const HELP = `\
 Usage: cmdsync [options] [paths...]
+       cmdsync completions <bash|zsh|fish|nu>
 
 Replace comment-delimited regions of any file with the output of the
 command named in the start comment:
@@ -20,6 +23,9 @@ the body of that block, and no end comment is needed.
 Arguments:
   paths                    Files or directories to process
                            (default: the config's "include" globs)
+
+Commands:
+  completions <shell>      Print a completion script for bash, zsh, fish or nu
 
 Options:
   -c, --config <file>      Config file (cmdsync.json or package.json)
@@ -57,25 +63,23 @@ const annotate = (level: 'error' | 'warning', file: string, line: number, messag
   console.log(`::${level} file=${escape(file)},line=${line},title=cmdsync::${escape(message)}`);
 };
 
+function completions(args: string[]): number {
+  const [shell] = args;
+  if (args.length !== 1 || !SHELLS.includes(shell as Shell)) {
+    throw new Error(`usage: cmdsync completions <${SHELLS.join('|')}>`);
+  }
+  process.stdout.write(completionScript(shell as Shell));
+  return 0;
+}
+
 function main(argv: string[]): number {
+  if (argv[0] === 'completions') return completions(argv.slice(1));
+
   const { values, positionals } = parseArgs({
     args: argv,
     allowPositionals: true,
     allowNegative: true,
-    options: {
-      config: { type: 'string', short: 'c' },
-      check: { type: 'boolean', default: false },
-      'dry-run': { type: 'boolean', short: 'n', default: false },
-      marker: { type: 'string', short: 'm' },
-      'end-marker': { type: 'string', short: 'e' },
-      comment: { type: 'string' },
-      shell: { type: 'string', short: 's' },
-      command: { type: 'string', multiple: true },
-      install: { type: 'boolean' },
-      quiet: { type: 'boolean', short: 'q', default: false },
-      help: { type: 'boolean', short: 'h', default: false },
-      version: { type: 'boolean', short: 'v', default: false },
-    },
+    options: PARSE_OPTIONS,
   });
 
   if (values.help) return console.log(HELP), 0;

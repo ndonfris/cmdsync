@@ -40,8 +40,8 @@
     "shell": {
       "type": "string",
       "minLength": 1,
-      "default": "sh",
-      "description": "Shell binary used to run each command (invoked as `<shell> -c <command>`)"
+      "default": "auto",
+      "description": "Shell binary used to run each command (invoked as `<shell> -c <command>`), or \"auto\" (the default): the shell cmdsync was started from, found by walking up the parent processes ($CMDSYNC_SHELL overrides it), else $SHELL, else sh"
     },
     "commands": {
       "type": "array",

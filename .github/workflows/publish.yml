@@ -21,7 +21,7 @@ on:
 
 permissions:
   contents: read
-  # OIDC token for trusted publishing and provenance
+  # OIDC token for trusted publishing
   id-token: write
 
 concurrency:
@@ -72,7 +72,7 @@ jobs:
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run }}
         run: |
           if [ "$DRY_RUN" = "true" ]; then
-            npm publish --dry-run --provenance --access public
+            npm publish --dry-run --access public
           else
-            npm publish --provenance --access public
+            npm publish --access public
           fi

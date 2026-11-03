@@ -30,11 +30,11 @@ Without linking, `node src/cli.ts <args>` runs the TypeScript source directly (N
 
 ## Publishing to npm
 
-Releases are published by [`.github/workflows/publish.yml`](../.github/workflows/publish.yml) when a GitHub release is published. It checks that the release tag is `v` + the `package.json` version, runs the typecheck, tests and `docs:check`, builds, and runs `npm publish --provenance`, which publishes `dist/`, the schema, the README and the license (see `files` in `package.json`).
+Releases are published by [`.github/workflows/publish.yml`](../.github/workflows/publish.yml) when a GitHub release is published. It checks that the release tag is `v` + the `package.json` version, runs the typecheck, tests and `docs:check`, builds, and runs `npm publish`, which publishes `dist/`, the schema, the README and the license (see `files` in `package.json`).
 
 **One-time setup**
 
-1. The GitHub repository has to be `ndonfris/cmdsync` (the `repository` url in `package.json`), since npm's provenance check compares the two.
+1. The GitHub repository has to be `ndonfris/cmdsync` (the `repository` url in `package.json`), since trusted publishing is set up for that repository and workflow. (Publishing with `--provenance`, which adds a signed link from the package to the commit that built it, also needs the repository to be public; `publish.yml` doesn't use it while `ndonfris/cmdsync` is private.)
 2. Publish the first version by hand, because npm only lets you configure trusted publishing on a package that exists:
 
    ```fish

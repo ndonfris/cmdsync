@@ -72,6 +72,16 @@ describe('planMigration', () => {
     assert.match(plan.notes[0]!, /yarn remove update-codeblocks && yarn add -D cmdsync/);
   });
 
+  it('converts the markers given with `from`, and rejects invalid ones', () => {
+    const dir = project({
+      'cmdsync.json': '{}',
+      'README.md': '<!-- DOCS: a -->\n```sh\nx\n```\n<!-- EMBED[format=md-table]: b -->\n| x |\n<!-- /EMBED -->\n<!-- OTHER: c -->\n```\n```\n',
+    });
+    const [readme] = planMigration(dir, { from: ['DOCS', 'EMBED'] }).files;
+    assert.equal(readme?.after, '<!-- CMDSYNC codeblock: a -->\n```sh\nx\n```\n<!-- CMDSYNC start format=md-table: b -->\n| x |\n<!-- CMDSYNC end -->\n<!-- OTHER: c -->\n```\n```\n');
+    assert.throws(() => planMigration(dir, { from: ['a b'] }), /invalid marker "a b"/);
+  });
+
   it('updates workflows, and has nothing to do the second time', () => {
     const dir = project({
       '.github/workflows/docs.yml': 'steps:\n  - uses: ndonfris/fish-lsp/packages/update-codeblocks@v1\n  - run: npx update-codeblocks --check\n',

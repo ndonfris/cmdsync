@@ -297,7 +297,7 @@ Usage: cmdsync [update] [options] [paths...]
        cmdsync lint [options] [paths...]
        cmdsync init [--package-json] | init global [--add]
        cmdsync repos [list | add [path] | remove <name>]
-       cmdsync migrate [--dry-run | --diff]
+       cmdsync migrate [--from <marker>...] [--dry-run | --diff]
        cmdsync completions <bash|zsh|fish|nu>
        cmdsync hook install
 
@@ -336,7 +336,9 @@ Commands:
   migrate                  Convert an update-codeblocks config and directives,
                            and directives in older cmdsync syntax (/CMDSYNC,
                            CMDSYNC[format=x]:), to the current syntax
-                           (--dry-run: only list, --diff: show the changes)
+                           (--dry-run: only list, --diff: show the changes);
+                           --from <marker> also converts another marker's
+                           directives (<!-- DOCS: cmd -->), repeatable
   completions <shell>      Print a completion script for bash, zsh, fish or nu
   hook install             Add `cmdsync --staged` to the git pre-commit hook
                            (prints the line to add if a hook already exists)
@@ -1008,6 +1010,7 @@ It:
 - rewrites `<!-- UPDATE_CODEBLOCK: cmd -->` (or a custom `marker`) above a fenced block to `<!-- CMDSYNC codeblock: cmd -->`
 - renames `update-codeblocks` in `package.json` scripts, and the action (`uses: ndonfris/cmdsync@master`) and CLI in `.github/workflows`
 - converts directives in older cmdsync syntax: `<!-- CMDSYNC[format=md-table]: cmd -->` … `<!-- /CMDSYNC -->` becomes `<!-- CMDSYNC start format=md-table: cmd -->` … `<!-- CMDSYNC end -->`, and a mode-less `<!-- CMDSYNC: cmd -->` gets its mode (`start` or `codeblock`) written out
+- with `--from <marker>` (repeatable), also converts directives of another marker, like another tool's or a custom `marker` you used: `cmdsync migrate --from DOCS` turns `<!-- DOCS: cmd -->` above a fenced block into `<!-- CMDSYNC codeblock: cmd -->`, and `<!-- DOCS: cmd -->` … `<!-- /DOCS -->` into `<!-- CMDSYNC start: cmd -->` … `<!-- CMDSYNC end -->`. Only files the config's `include` globs match are converted.
 - lists what's left to do by hand, like swapping the `update-codeblocks` dependency for `cmdsync`, and directives it couldn't classify (no end marker or fenced block after them)
 
 Examples in inline code and fenced code blocks are left alone, and running it again changes nothing. What changed, by hand:

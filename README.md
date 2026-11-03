@@ -21,7 +21,11 @@ Running `cmdsync` executes each command and replaces **only the content the comm
 
 ## Install
 
+Requires Node.js `>=22.18`.
+
 ### Local install
+
+As a dev dependency, so the project, its contributors and CI all run the same version:
 
 ```fish
 # with npm
@@ -40,9 +44,27 @@ bun add -d cmdsync
 npx cmdsync --help
 ```
 
-Requires Node.js `>=22.18`.
+Run it through the package manager (`npx cmdsync`, `yarn cmdsync`, `pnpm cmdsync`, `bunx cmdsync`) or from `package.json` scripts, like `"docs": "cmdsync"` and `"docs:check": "cmdsync check"`. [`cmdsync hook install`](docs/git-hooks.md) adds the same local install to the pre-commit hook.
 
-<!-- section describing global install -->
+### Global install
+
+To have `cmdsync` on your `PATH` in every repository:
+
+```fish
+# with npm (also installs the man page: man cmdsync)
+npm install -g cmdsync
+
+# with yarn
+yarn global add cmdsync
+
+# with pnpm
+pnpm add -g cmdsync
+
+# with bun
+bun add -g cmdsync
+```
+
+With a Node version manager (nvm, fnm, volta, ...), global packages belong to the active Node version, so install it again after switching versions. If `man cmdsync` finds nothing after an npm install, add `$(npm prefix -g)/share/man` to your `MANPATH`. For tab completion, see [shell completions](docs/cli.md#shell-completions). To run your own checkout instead, see [building from source](docs/development.md#building-from-source).
 
 `cmdsync init` writes a starter `cmdsync.json` (or, with `--package-json`, a `"cmdsync"` key in `package.json`) and prints the next steps. It leaves an existing config alone, and points at [`cmdsync migrate`](docs/migrating.md) when it finds an `update-codeblocks` one.
 

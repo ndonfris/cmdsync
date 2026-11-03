@@ -14,10 +14,18 @@ this line is replaced with the output of `my-cli --version`
 
 Running `cmdsync` executes each command and replaces **only the content the comment points at**. The comments stay where they are, so running it again regenerates the same content.
 
-- Works in any file with comments: markdown, mdx, html, yaml, shell, TypeScript, ... ([built-in syntax table](docs/directives.md#comment-syntax), or [your own](docs/directives.md#custom-syntax)).
-- Has no runtime dependencies.
-- If a command fails (non-zero exit, timeout, or a binary that isn't allowed), its content stays as it was and the run exits with status `1`.
-- Re-running with unchanged output changes nothing, so it's safe in CI.
+## Features
+
+- **Any file with comments**: markdown, mdx, html, yaml, shell, TypeScript, ... ([built-in syntax](docs/directives.md#comment-syntax), or [your own](docs/directives.md#custom-syntax))
+- **Output where you want it**: a region, one line, a code block's body, text inside a line, or a command shown with its output ([directives](docs/directives.md))
+- **Tables and includes**: JSON rendered as markdown or html tables, and file contents or line ranges (`include=src/x.ts#L10-L20`) instead of a command
+- **Custom directives**: your own, from templates or TypeScript formatters ([custom directives](docs/custom-directives.md))
+- **Safe to re-run**: unchanged output changes nothing, and a failing command keeps its content and exits `1`
+- **Preview before writing**: `cmdsync status` shows a diff, `cmdsync -i` lets you pick changes, `cmdsync lint` validates without running anything ([CLI](docs/cli.md))
+- **Commits and CI**: a pre-commit hook, `cmdsync check`, a GitHub Action, and pull requests to other repositories on release ([git hooks](docs/git-hooks.md), [GitHub Actions](docs/github-actions.md))
+- **Many repositories**: one global config to run them all ([multiple repositories](docs/configuration.md#multiple-repositories))
+- **Shell completions** for bash, zsh, fish and nushell, and a man page
+- **No runtime dependencies**, on Node.js `>=22.18`
 
 ## Documentation
 

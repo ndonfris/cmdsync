@@ -5,3 +5,12 @@
  * Set CMDSYNC_SHELL yourself to run the tests with another shell.
  */
 process.env.CMDSYNC_SHELL ??= 'sh';
+
+/**
+ * Whether cmdsync runs "in GitHub Actions" (where it prints `::error` annotations and
+ * writes GITHUB_OUTPUT / GITHUB_STEP_SUMMARY) is up to each test, not to where the
+ * tests run: in CI these are set, and spawned CLIs would inherit them.
+ */
+delete process.env.GITHUB_ACTIONS;
+delete process.env.GITHUB_OUTPUT;
+delete process.env.GITHUB_STEP_SUMMARY;

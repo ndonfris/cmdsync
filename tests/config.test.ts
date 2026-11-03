@@ -63,6 +63,8 @@ describe('resolveConfig', () => {
     const dir = fixture({ 'package.json': { name: 'no-config' } });
     const config = resolveConfig({ cwd: dir });
     assert.equal(config.source, null);
-    assert.equal(config.shell, 'sh');
+    // the default shell is `auto`, resolved to a real shell (see tests/shell.test.ts for how)
+    assert.ok(config.shell && config.shell !== 'auto');
+    assert.ok(config.shellFrom);
   });
 });

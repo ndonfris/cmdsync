@@ -83,7 +83,7 @@ const markerMention = (syntax: RegionSyntax) =>
 export const endPattern = (syntax: RegionSyntax) =>
   new RegExp(`${escapeRegExp(syntax.open)}\\s*${markerPattern(syntax.endMarker)}\\s*${closeOrEol(syntax)}`);
 
-const openingFence = (line: string) => line.match(/^(\s*)(`{3,}|~{3,})(.*)$/);
+export const openingFence = (line: string) => line.match(/^(\s*)(`{3,}|~{3,})(.*)$/);
 
 /** A backtick fence longer than any fence-like line in `body`, so the body can't close it */
 const fenceFor = (body: string) =>
@@ -96,13 +96,13 @@ const isClosingFence = (line: string, fence: string) => {
 };
 
 /** Index of the line closing the fence opened at `open`, or -1 when unterminated */
-const closingFence = (lines: string[], open: number, fence: string) => {
+export const closingFence = (lines: string[], open: number, fence: string) => {
   for (let i = open + 1; i < lines.length; i++) if (isClosingFence(lines[i]!, fence)) return i;
   return -1;
 };
 
 /** [start, end) ranges of inline code spans, where directives are only examples */
-const codeSpans = (line: string) =>
+export const codeSpans = (line: string) =>
   [...line.matchAll(/(?<!`)(`+)(?!`).*?(?<!`)\1(?!`)/g)].map(m => [m.index, m.index + m[0].length] as const);
 
 /** `docs/a.ts#L10-L20` → `{ path: 'docs/a.ts', from: 10, to: 20 }` (also `#L10`, `#L10-20`, `#L10-`) */

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { appendFileSync, existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { type UserConfig, resolveConfig } from './config.js';
@@ -7,6 +7,7 @@ import { completionScript } from './completions.js';
 import { gitRoot, gitStatus, installHook, stage } from './git.js';
 import { contractHome, expandHome, globalConfigPath, loadGlobalConfig, repoName, saveGlobalConfig, selectRepos } from './global.js';
 import { initConfig, initGlobal, removeRepo } from './init.js';
+import { planMigration } from './migrate.js';
 import {
   type FileResult, type InstallEvent, type RegionResult,
   directiveSource, displayPath, missingBinaries, run, runPostUpdate, unifiedDiff,
@@ -20,6 +21,7 @@ Usage: cmdsync [update] [options] [paths...]
        cmdsync lint [options] [paths...]
        cmdsync init [--package-json] | init global [--add]
        cmdsync repos [list | add [path] | remove <name>]
+       cmdsync migrate [--dry-run | --diff]
        cmdsync completions <bash|zsh|fish|nu>
        cmdsync hook install
 
@@ -55,6 +57,10 @@ Commands:
   repos add [path]         Add a repository (default: this one), with
                            --name <name> and --group <group>...
   repos remove <name>      Remove a repository, by name or path
+  migrate                  Convert an update-codeblocks config and directives,
+                           and directives in older cmdsync syntax (/CMDSYNC,
+                           CMDSYNC[format=x]:), to the current syntax
+                           (--dry-run: only list, --diff: show the changes)
   completions <shell>      Print a completion script for bash, zsh, fish or nu
   hook install             Add \`cmdsync --staged\` to the git pre-commit hook
                            (prints the line to add if a hook already exists)
@@ -321,8 +327,41 @@ function repos(args: string[]): number {
   }
 }
 
+function migrate(args: string[]): number {
+  const { values } = parseArgs({
+    args,
+    options: {
+      'dry-run': { type: 'boolean', short: 'n', default: false },
+      diff: { type: 'boolean', short: 'd', default: false },
+      quiet: { type: 'boolean', short: 'q', default: false },
+    },
+  });
+  const log = (...msg: unknown[]) => values.quiet || console.log(...msg);
+  const root = gitRootOrCwd();
+  const plan = planMigration(root);
+  const write = !values['dry-run'] && !values.diff;
+  const color = process.stdout.isTTY && !process.env.NO_COLOR;
+  if (plan.files.length === 0 && plan.notes.length === 0) {
+    log('nothing to migrate: no update-codeblocks config, and no directives in an old syntax');
+    return 0;
+  }
+  for (const { file, before, after, notes } of plan.files) {
+    const path = displayPath(file, root);
+    const verb = after === null ? 'delete' : before === '' ? 'create' : after === before ? 'check' : 'update';
+    log(`${write ? { delete: 'deleted', create: 'created', update: 'updated', check: 'check' }[verb] : verb}  ${path}${notes.length ? `  (${notes.join('; ')})` : ''}`);
+    if (values.diff && after !== null && after !== before) process.stdout.write(`\n${unifiedDiff(before, after, { path, color })}\n`);
+    if (!write || after === before) continue;
+    if (after === null) rmSync(file);
+    else writeFileSync(file, after);
+  }
+  if (plan.notes.length > 0) console.log(`\nBy hand:\n${plan.notes.map(n => `  - ${n}`).join('\n')}`);
+  if (write) log('\nRun `cmdsync lint` to check every directive, then `cmdsync status` to see what regenerating would change.');
+  return values.diff && plan.files.some(f => f.after !== f.before) ? 1 : 0;
+}
+
 function main(argv: string[]): number {
   if (argv[0] === 'completions') return completions(argv.slice(1));
+  if (argv[0] === 'migrate') return migrate(argv.slice(1));
   if (argv[0] === 'hook') return hook(argv.slice(1));
   if (argv[0] === 'init') return init(argv.slice(1));
   if (argv[0] === 'repos') return repos(argv.slice(1));

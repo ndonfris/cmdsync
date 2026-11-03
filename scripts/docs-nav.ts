@@ -5,7 +5,6 @@
  *   node scripts/docs-nav.ts --footer docs/cli.md   the ← previous · contents · next → footer of a doc
  *   node scripts/docs-nav.ts --toc                  docs/README.md's table of contents (each doc and its sections)
  *   node scripts/docs-nav.ts --table                the root README's table of the docs
- *   node scripts/docs-nav.ts --list                 the same, as a markdown list
  *
  * Adding, removing or reordering a doc is a change to DOCS; `yarn docs` updates every
  * footer and both tables, and `yarn docs:check` fails while one is out of date.
@@ -86,13 +85,7 @@ function table(): string {
     '| Guide | What\'s in it |',
     '| --- | --- |',
     ...DOCS.map(({ file, description }) => `| [${title(file)}](docs/${file}) | ${description} |`),
-    '',
-    'Or start at the [table of contents](docs/README.md).',
   ].join('\n');
-}
-
-function list(): string {
-  return DOCS.map(({ file, description }) => `- [${title(file)}](docs/${file}): ${description}`).join('\n');
 }
 
 if (process.argv[1] === import.meta.filename) {
@@ -100,9 +93,8 @@ if (process.argv[1] === import.meta.filename) {
   if (flag === '--footer' && path) console.log(footer(path));
   else if (flag === '--toc') console.log(toc());
   else if (flag === '--table') console.log(table());
-  else if (flag === '--list') console.log(list());
   else {
-    console.error('usage: node scripts/docs-nav.ts --footer docs/<file>.md | --toc | --table | --list');
+    console.error('usage: node scripts/docs-nav.ts --footer docs/<file>.md | --toc | --table');
     process.exitCode = 2;
   }
 }

@@ -3,7 +3,20 @@
 Install cmdsync as a dev dependency of the project whose files it keeps up to date. The version is then pinned in the lockfile, so contributors, CI and the git hook all run the same one. Requires Node.js `>=22.18`.
 
 ```fish
-npm install -D cmdsync   # or: yarn add -D cmdsync, pnpm add -D cmdsync, bun add -d cmdsync
+# with npm
+npm install -D cmdsync
+
+# with yarn
+yarn add -D cmdsync
+
+# with pnpm
+pnpm add -D cmdsync
+
+# with bun
+bun add -d cmdsync
+
+# or run it without installing
+npx cmdsync --help
 ```
 
 ## Running it

@@ -1,0 +1,60 @@
+# Check every push and pull request: types, build, tests, and that everything
+# generated from the source (README regions, the examples' docs, the man page) is
+# committed up to date. Runs on the oldest supported Node (engines: >=22.18) and
+# a current one.
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# a newer push to the same branch or PR replaces a run that's still going
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22.18', '24']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: yarn
+
+      # also builds dist/ and man/cmdsync.1 (prepare)
+      - run: yarn install --frozen-lockfile
+
+      # typecheck, build, test
+      - run: yarn verify
+
+      - name: The README's regions are up to date
+        run: yarn docs:check
+
+      - name: The examples' docs are up to date
+        run: |
+          node src/cli.ts --check --config examples/diagnostic-codes/cmdsync.json
+          node src/cli.ts --check --config examples/custom-directives/cmdsync.json
+
+      - name: Every directive is valid
+        run: node src/cli.ts lint
+
+      # the build regenerates the man page; a diff means it wasn't committed after an option changed
+      - name: The committed man page is up to date
+        run: |
+          if ! git diff --exit-code -- man/cmdsync.1; then
+            echo "::error file=man/cmdsync.1::out of date: run \`yarn build:man\` and commit it"
+            exit 1
+          fi

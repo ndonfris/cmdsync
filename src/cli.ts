@@ -1,9 +1,12 @@
 #!/usr/bin/env node
-import { appendFileSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { type UserConfig, resolveConfig } from './config.js';
 import { completionScript } from './completions.js';
 import { gitRoot, gitStatus, installHook, stage } from './git.js';
+import { contractHome, expandHome, globalConfigPath, loadGlobalConfig, repoName, saveGlobalConfig, selectRepos } from './global.js';
+import { initConfig, initGlobal, removeRepo } from './init.js';
 import {
   type FileResult, type InstallEvent, type RegionResult,
   directiveSource, displayPath, missingBinaries, run, runPostUpdate, unifiedDiff,
@@ -15,6 +18,8 @@ Usage: cmdsync [update] [options] [paths...]
        cmdsync status [options] [paths...]
        cmdsync check [options] [paths...]
        cmdsync lint [options] [paths...]
+       cmdsync init [--package-json] | init global [--add]
+       cmdsync repos [list | add [path] | remove <name>]
        cmdsync completions <bash|zsh|fish|nu>
        cmdsync hook install
 
@@ -43,6 +48,13 @@ Commands:
                            options, missing end markers or includes, commands
                            outside "commands", stray markers (exit 1), and
                            binaries that aren't on PATH (warning)
+  init                     Create a starter cmdsync.json here (--package-json:
+                           a "cmdsync" key in package.json instead)
+  init global              Create the global config (--add: and add this repo)
+  repos                    List the global config's repositories
+  repos add [path]         Add a repository (default: this one), with
+                           --name <name> and --group <group>...
+  repos remove <name>      Remove a repository, by name or path
   completions <shell>      Print a completion script for bash, zsh, fish or nu
   hook install             Add \`cmdsync --staged\` to the git pre-commit hook
                            (prints the line to add if a hook already exists)
@@ -70,6 +82,11 @@ Options:
       --no-post-update-cmds
                            Never run "postUpdate" commands (default: run them
                            after an update that wrote at least one file)
+      --all                Run in every repository of the global config
+  -g, --group <name>       Run in the global config's repositories in a group,
+                           repeatable
+  -r, --repo <name>        Run in a global config repository, by name or path,
+                           repeatable
   -q, --quiet              Only print errors
       --verbose            Also print every file scanned, and every command run
                            with its exit status and time
@@ -90,7 +107,8 @@ Directives: <!-- CMDSYNC [mode] [start] [format=...] [lang=...]: cmd -->
                               instead of a command; a line range is dedented
 
 Config is read from the nearest cmdsync.json, or the "cmdsync" key of
-the nearest package.json.
+the nearest package.json, over the "defaults" of the global config
+($CMDSYNC_GLOBAL_CONFIG, or $XDG_CONFIG_HOME/cmdsync/config.json).
 
 Exit codes: 0 success, 1 failed command, invalid directive or out of date
 region (--check, --diff), 2 usage error
@@ -201,19 +219,117 @@ function lintReport(results: FileResult[], config: ReturnType<typeof resolveConf
 const RUN_COMMANDS = ['update', 'status', 'check', 'lint'] as const;
 type RunCommand = typeof RUN_COMMANDS[number];
 
+const parseCli = (args: string[]) => parseArgs({ args, allowPositionals: true, allowNegative: true, options: PARSE_OPTIONS });
+type Values = ReturnType<typeof parseCli>['values'];
+
+function init(args: string[]): number {
+  const { values, positionals } = parseArgs({
+    args,
+    allowPositionals: true,
+    options: {
+      'package-json': { type: 'boolean', default: false },
+      add: { type: 'boolean', default: false },
+      name: { type: 'string' },
+      group: { type: 'string', multiple: true },
+    },
+  });
+  if (positionals[0] === 'global') {
+    if (positionals.length > 1 || values['package-json']) throw new Error('usage: cmdsync init global [--add [--name <name>] [--group <group>...]]');
+    const add = values.add ? { path: contractHome(gitRootOrCwd()), ...values.name && { name: values.name }, ...values.group && { groups: values.group } } : undefined;
+    const result = initGlobal({ add });
+    console.log(result.created ? `created ${result.file}` : `${result.file} already exists`);
+    if (add) console.log(result.added ? `added ${repoName(add)} (${add.path})` : `${add.path} is already in it`);
+    if (result.created) console.log('\nIts "defaults" apply to every repository; add repositories with `cmdsync repos add`, then run them with `cmdsync --all`.');
+    return 0;
+  }
+  if (positionals.length > 0 || values.add || values.name || values.group) {
+    throw new Error('usage: cmdsync init [--package-json] | cmdsync init global [--add ...]');
+  }
+  const result = initConfig(process.cwd(), { packageJson: values['package-json'] });
+  switch (result.kind) {
+    case 'exists':
+      console.log(`already configured: ${result.file}`);
+      return 0;
+    case 'legacy':
+      console.error(`${result.file} is an update-codeblocks config: run \`cmdsync migrate\` to convert it`);
+      return 1;
+    case 'created':
+      console.log(`created ${result.file}
+
+Next:
+  1. add a directive to a markdown file:
+       <!-- CMDSYNC start: your-cli --help -->
+       <!-- CMDSYNC end -->
+  2. run \`cmdsync\` to fill it in (\`cmdsync status\` to preview, \`cmdsync check\` in CI)
+  3. \`cmdsync hook install\` to regenerate on every commit`);
+      return 0;
+  }
+}
+
+/** Repository root of the cwd, or the cwd outside of git */
+function gitRootOrCwd(): string {
+  try {
+    return gitRoot(process.cwd());
+  } catch {
+    return process.cwd();
+  }
+}
+
+function repos(args: string[]): number {
+  const usage = 'usage: cmdsync repos [list] | repos add [path] [--name <name>] [--group <group>...] | repos remove <name|path>';
+  const { values, positionals } = parseArgs({
+    args,
+    allowPositionals: true,
+    options: { name: { type: 'string' }, group: { type: 'string', multiple: true } },
+  });
+  const [action = 'list', ...rest] = positionals;
+  const file = globalConfigPath();
+  const global = loadGlobalConfig(file);
+  switch (action) {
+    case 'list': {
+      if (rest.length > 0) throw new Error(usage);
+      if (!global?.repos?.length) {
+        console.log(global ? `no repos in ${file}` : `no global config at ${file}: create it with \`cmdsync init global\``);
+        return 0;
+      }
+      const width = Math.max(...global.repos.map(r => repoName(r).length));
+      for (const repo of global.repos) {
+        const missing = existsSync(expandHome(repo.path)) ? '' : '  (missing)';
+        console.log(`${repoName(repo).padEnd(width)}  ${repo.path}${repo.groups?.length ? `  [${repo.groups.join(', ')}]` : ''}${missing}`);
+      }
+      return 0;
+    }
+    case 'add': {
+      if (rest.length > 1) throw new Error(usage);
+      const path = rest[0] ? resolve(expandHome(rest[0])) : gitRootOrCwd();
+      if (!existsSync(path)) throw new Error(`${path} does not exist`);
+      const repo = { path: contractHome(path), ...values.name && { name: values.name }, ...values.group && { groups: values.group } };
+      const result = initGlobal({ add: repo });
+      console.log(result.added ? `added ${repoName(repo)} (${repo.path}) to ${result.file}` : `${repo.path} is already in ${result.file}`);
+      return 0;
+    }
+    case 'remove': {
+      if (rest.length !== 1 || !global) throw new Error(global ? usage : `no global config at ${file}`);
+      const removed = removeRepo(global, rest[0]!);
+      if (!removed) throw new Error(`no repo named "${rest[0]}" in ${file}`);
+      saveGlobalConfig(global, file);
+      console.log(`removed ${repoName(removed)} (${removed.path})`);
+      return 0;
+    }
+    default:
+      throw new Error(usage);
+  }
+}
+
 function main(argv: string[]): number {
   if (argv[0] === 'completions') return completions(argv.slice(1));
   if (argv[0] === 'hook') return hook(argv.slice(1));
+  if (argv[0] === 'init') return init(argv.slice(1));
+  if (argv[0] === 'repos') return repos(argv.slice(1));
   const subcommand = RUN_COMMANDS.includes(argv[0] as RunCommand) ? argv[0] as RunCommand : undefined;
   if (subcommand) argv = argv.slice(1);
-  const lint = subcommand === 'lint';
 
-  const { values, positionals } = parseArgs({
-    args: argv,
-    allowPositionals: true,
-    allowNegative: true,
-    options: PARSE_OPTIONS,
-  });
+  const { values, positionals } = parseCli(argv);
 
   if (values.help) return console.log(HELP), 0;
   if (values.version) {
@@ -228,7 +344,39 @@ function main(argv: string[]): number {
     ...values.shell && { shell: values.shell },
     ...values.command && { commands: values.command },
   };
-  const config = resolveConfig({ configPath: values.config, overrides });
+  const global = loadGlobalConfig();
+  if (global?.defaults && Object.keys(global.defaults).length > 0 && !values.quiet) console.log(`global: ${globalConfigPath()}`);
+  const multi = values.all || !!values.group?.length || !!values.repo?.length;
+  if (!multi) return runIn(resolveConfig({ configPath: values.config, overrides, defaults: global?.defaults }), values, positionals, subcommand);
+
+  if (!global) throw new Error(`--all, --group and --repo need a global config, and there's none at ${globalConfigPath()}: create it with \`cmdsync init global\``);
+  if (positionals.length > 0 || values.config || values.staged) {
+    throw new Error('--all, --group and --repo run each repository with its own config, so they can\'t be combined with paths, --config or --staged');
+  }
+  const selected = selectRepos(global, { all: values.all, groups: values.group, repos: values.repo });
+  let code = 0;
+  let failed = 0;
+  for (const [i, repo] of selected.entries()) {
+    const dir = expandHome(repo.path);
+    if (!values.quiet) console.log(`${i === 0 ? '' : '\n'}━━ ${repoName(repo)}  ${repo.path}`);
+    try {
+      if (!existsSync(dir)) throw new Error(`${dir} does not exist`);
+      const result = runIn(resolveConfig({ cwd: dir, overrides, defaults: global.defaults }), values, [], subcommand);
+      if (result !== 0) failed++;
+      code = Math.max(code, result);
+    } catch (err) {
+      console.error(`cmdsync: ${repoName(repo)}: ${(err as Error).message}`);
+      failed++;
+      code = Math.max(code, 1);
+    }
+  }
+  if (!values.quiet) console.log(`\n${selected.length} repo(s)${failed ? `, ${failed} with errors or out of date` : ''}`);
+  return code;
+}
+
+/** One run (update, status, check or lint) with one config */
+function runIn(config: ReturnType<typeof resolveConfig>, values: Values, positionals: string[], subcommand: RunCommand | undefined): number {
+  const lint = subcommand === 'lint';
   const log = (...msg: unknown[]) => values.quiet || console.log(...msg);
   if (values.quiet && values.verbose) throw new Error('--quiet and --verbose cannot be combined');
   const verbose = (...msg: unknown[]) => values.verbose && console.log(...msg);

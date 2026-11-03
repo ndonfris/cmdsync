@@ -184,13 +184,22 @@ export function loadConfigFile(path: string): { config: UserConfig; root: string
   return { config: validateConfig(json, file), root: dirname(file), source: file };
 }
 
+/**
+ * Built-in defaults < `defaults` (the global config's) < the config file < `overrides` (CLI flags).
+ * `install` and `env` merge key by key; every other key is replaced.
+ */
 export function resolveConfig(
-  options: { cwd?: string; configPath?: string; overrides?: UserConfig; } = {},
+  options: { cwd?: string; configPath?: string; overrides?: UserConfig; defaults?: UserConfig; } = {},
 ): ResolvedConfig {
   const cwd = resolve(options.cwd ?? process.cwd());
   const found = options.configPath ? loadConfigFile(options.configPath) : findConfig(cwd);
   const root = found?.root ?? cwd;
-  const merged: UserConfig = { ...DEFAULT_CONFIG, ...found?.config, ...options.overrides };
+  const layers = [DEFAULT_CONFIG, options.defaults ?? {}, found?.config ?? {}, options.overrides ?? {}];
+  const merged: UserConfig = {
+    ...Object.assign({}, ...layers),
+    install: Object.assign({}, ...layers.map(l => l.install)),
+    env: Object.assign({}, ...layers.map(l => l.env)),
+  };
   return {
     ...DEFAULT_CONFIG,
     ...merged,

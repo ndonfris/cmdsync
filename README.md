@@ -898,4 +898,4 @@ yarn docs        # regenerate this README's regions with cmdsync itself
 
 ## License
 
-MIT
+[MIT](./LICENSE.md)

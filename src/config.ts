@@ -214,6 +214,30 @@ export function findConfig(cwd: string): { config: UserConfig; root: string; sou
   }
 }
 
+/**
+ * The file `findConfig` would read (`cmdsync.json`, or a `package.json` with a `"cmdsync"` key),
+ * without validating it, so a broken config can still be shown and edited. `null` when there's none.
+ */
+export function locateConfig(cwd: string): string | null {
+  let dir = resolve(cwd);
+  for (;;) {
+    const file = join(dir, CONFIG_FILE);
+    if (existsSync(file)) return file;
+    const pkg = join(dir, 'package.json');
+    if (existsSync(pkg)) {
+      try {
+        const json = JSON.parse(readFileSync(pkg, 'utf-8'));
+        if (isObject(json) && PACKAGE_JSON_KEY in json) return pkg;
+      } catch {
+        // an unparsable package.json isn't a config
+      }
+    }
+    const parent = dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
+
 /** Load a config from an explicit path (`cmdsync.json` or `package.json`) */
 export function loadConfigFile(path: string): { config: UserConfig; root: string; source: string; } {
   const file = resolve(path);

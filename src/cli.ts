@@ -10,7 +10,7 @@ import { initConfig, initGlobal, removeRepo } from './init.js';
 import { planMigration } from './migrate.js';
 import {
   type FileResult, type InstallEvent, type RegionResult,
-  directiveSource, displayPath, missingBinaries, run, runPostUpdate, unifiedDiff,
+  directiveSource, displayPath, loadFormatters, missingBinaries, run, runPostUpdate, unifiedDiff,
 } from './index.js';
 import { PARSE_OPTIONS, SHELLS, type Shell } from './options.js';
 
@@ -181,10 +181,11 @@ function lintReport(results: FileResult[], config: ReturnType<typeof resolveConf
       const { directive } = region;
       const source = directiveSource(directive);
       const at = (end?: number) => `${path}:${directive.line + 1}${end !== undefined && end !== directive.line ? `-${end + 1}` : ''}`;
-      const mode = (r: RegionResult) => r.kind === 'updated' ? r.as : directive.options.mode ?? '';
+      const base = (r: RegionResult) => r.kind === 'updated' ? r.as : directive.options.mode ?? '';
+      const mode = (r: RegionResult) => directive.options.custom ? `${directive.options.custom} (${base(r)})` : base(r);
       const row = (status: string) => `    ${pad(status, 7)}  ${at(region.kind === 'updated' ? region.end : undefined)}  ${pad(mode(region), 9)}  ${source}`;
       if (region.kind === 'updated') {
-        const missing = directive.command ? missingBinaries(directive.command, config) : [];
+        const missing = region.command ? missingBinaries(region.command, config) : [];
         entries.push({
           line: directive.line,
           print: () => {
@@ -364,7 +365,7 @@ function migrate(args: string[]): number {
   return values.diff && plan.files.some(f => f.after !== f.before) ? 1 : 0;
 }
 
-function main(argv: string[]): number {
+async function main(argv: string[]): Promise<number> {
   if (argv[0] === 'completions') return completions(argv.slice(1));
   if (argv[0] === 'migrate') return migrate(argv.slice(1));
   if (argv[0] === 'hook') return hook(argv.slice(1));
@@ -391,7 +392,7 @@ function main(argv: string[]): number {
   const global = loadGlobalConfig();
   if (global?.defaults && Object.keys(global.defaults).length > 0 && !values.quiet) console.log(`global: ${globalConfigPath()}`);
   const multi = values.all || !!values.group?.length || !!values.repo?.length;
-  if (!multi) return runIn(resolveConfig({ configPath: values.config, overrides, defaults: global?.defaults }), values, positionals, subcommand);
+  if (!multi) return await runIn(resolveConfig({ configPath: values.config, overrides, defaults: global?.defaults }), values, positionals, subcommand);
 
   if (!global) throw new Error(`--all, --group and --repo need a global config, and there's none at ${globalConfigPath()}: create it with \`cmdsync init global\``);
   if (positionals.length > 0 || values.config || values.staged) {
@@ -405,7 +406,7 @@ function main(argv: string[]): number {
     if (!values.quiet) console.log(`${i === 0 ? '' : '\n'}━━ ${repoName(repo)}  ${repo.path}`);
     try {
       if (!existsSync(dir)) throw new Error(`${dir} does not exist`);
-      const result = runIn(resolveConfig({ cwd: dir, overrides, defaults: global.defaults }), values, [], subcommand);
+      const result = await runIn(resolveConfig({ cwd: dir, overrides, defaults: global.defaults }), values, [], subcommand);
       if (result !== 0) failed++;
       code = Math.max(code, result);
     } catch (err) {
@@ -419,8 +420,9 @@ function main(argv: string[]): number {
 }
 
 /** One run (update, status, check or lint) with one config */
-function runIn(config: ReturnType<typeof resolveConfig>, values: Values, positionals: string[], subcommand: RunCommand | undefined): number {
+async function runIn(config: ReturnType<typeof resolveConfig>, values: Values, positionals: string[], subcommand: RunCommand | undefined): Promise<number> {
   const lint = subcommand === 'lint';
+  const formatters = await loadFormatters(config);
   const log = (...msg: unknown[]) => values.quiet || console.log(...msg);
   if (values.quiet && values.verbose) throw new Error('--quiet and --verbose cannot be combined');
   const verbose = (...msg: unknown[]) => values.verbose && console.log(...msg);
@@ -443,7 +445,7 @@ function runIn(config: ReturnType<typeof resolveConfig>, values: Values, positio
     const conflicting = (['check', 'dry-run', 'diff', 'staged', 'install', 'post-update-cmds'] as const).filter(o => values[o] !== undefined && values[o] !== false);
     if (conflicting.length > 0) throw new Error(`lint never runs commands or writes, so it doesn't take --${conflicting.join(', --')}`);
     log(`config: ${config.source ?? '(defaults)'}\n`);
-    return lintReport(run(config, { paths: positionals, lint: true }), config, values.quiet);
+    return lintReport(run(config, { paths: positionals, lint: true, formatters }), config, values.quiet);
   }
   if (values.staged && (check || dryRun || diff)) {
     throw new Error('--staged cannot be combined with --check, --dry-run or --diff');
@@ -525,7 +527,7 @@ function runIn(config: ReturnType<typeof resolveConfig>, values: Values, positio
 
   const install = values.install === undefined ? 'missing' : values.install ? 'always' : 'never';
   const results = run(config, {
-    paths: positionals, write, install, onFile: report, onInstall,
+    paths: positionals, write, install, formatters, onFile: report, onInstall,
     ...values.verbose && { onScan, onCommand },
   });
 
@@ -574,9 +576,10 @@ function runIn(config: ReturnType<typeof resolveConfig>, values: Values, positio
   return failed > 0 || blocked > 0 || postFailed || ((check || (diff && !status)) && stale.length > 0) ? 1 : 0;
 }
 
-try {
-  process.exitCode = main(process.argv.slice(2));
-} catch (err) {
-  console.error(`cmdsync: ${(err as Error).message}`);
-  process.exitCode = 2;
-}
+main(process.argv.slice(2)).then(
+  code => { process.exitCode = code; },
+  (err: Error) => {
+    console.error(`cmdsync: ${err.message}`);
+    process.exitCode = 2;
+  },
+);

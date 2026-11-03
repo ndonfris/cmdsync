@@ -1,0 +1,32 @@
+{
+  "$schema": "../../cmdsync.schema.json",
+  "commands": ["node"],
+  "directives": {
+    "greet": {
+      "description": "run the example CLI",
+      "command": "node scripts/greet.mjs {cmd}"
+    },
+    "quote": {
+      "description": "the output as a blockquote",
+      "command": "node scripts/greet.mjs {cmd}",
+      "template": "{output|quote}"
+    },
+    "version": {
+      "description": "one line: label and version",
+      "mode": "line",
+      "command": "node scripts/greet.mjs --version",
+      "template": "**{params.label|default:Version}:** `{output|trim}`"
+    },
+    "usage": {
+      "description": "--help in a text code block",
+      "mode": "codeblock",
+      "lang": "text",
+      "command": "node scripts/greet.mjs --help"
+    },
+    "terminal": {
+      "description": "the command and its output, as two code blocks",
+      "command": "node scripts/greet.mjs {cmd}",
+      "formatter": "./scripts/terminal.ts"
+    }
+  }
+}

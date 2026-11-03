@@ -152,6 +152,71 @@
       },
       "default": [],
       "description": "Commands run in order after an update wrote at least one file. Same shell, cwd and env as directives, plus CMDSYNC_CHANGED_FILES (written files, one per line, relative to the config root)."
+    },
+    "directives": {
+      "type": "object",
+      "default": {},
+      "description": "Custom directives by name, used like a mode: <!-- CMDSYNC name: command -->. The command runs, then formatter and/or template turn its output into what's written.",
+      "propertyNames": {
+        "pattern": "^[a-z][\\w-]*$",
+        "not": {
+          "enum": [
+            "region",
+            "line",
+            "codeblock",
+            "console",
+            "console-pretty",
+            "start",
+            "end"
+          ]
+        }
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "enum": [
+              "region",
+              "line",
+              "codeblock",
+              "console",
+              "console-pretty"
+            ],
+            "default": "region",
+            "description": "The built-in mode that writes the result"
+          },
+          "command": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The command to run, with {cmd} for what the directive says (default: {cmd})"
+          },
+          "lang": {
+            "type": "string",
+            "pattern": "^[\\w.+#-]+$",
+            "description": "Default lang="
+          },
+          "format": {
+            "enum": [
+              "md-table",
+              "html-table"
+            ],
+            "description": "Default format=, applied before formatter and template"
+          },
+          "template": {
+            "type": "string",
+            "description": "Text written, with placeholders ({output}, {cmd}, {command}, {lang}, {file}, {line}, {date}, {env.NAME}, {params.NAME}, ...) and filters ({output|trim|quote}, {output|code:txt}, ...)"
+          },
+          "formatter": {
+            "type": "string",
+            "minLength": 1,
+            "description": "JS/TS module, relative to the config root, whose default export (ctx: FormatterContext) => string returns what's written"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      }
     }
   }
 }

@@ -26,7 +26,7 @@
   },
   "type": "module",
   "engines": {
-    "node": ">=22.17.0"
+    "node": ">=22.18.0"
   },
   "bin": {
     "cmdsync": "./dist/cli.js"
@@ -60,7 +60,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "docs": "tsx src/cli.ts",
     "docs:check": "tsx src/cli.ts --check",
-    "docs:examples": "tsx src/cli.ts --config examples/diagnostic-codes/cmdsync.json",
+    "docs:examples": "tsx src/cli.ts --config examples/diagnostic-codes/cmdsync.json && tsx src/cli.ts --config examples/custom-directives/cmdsync.json",
     "prepublishOnly": "yarn build && yarn test"
   },
   "devDependencies": {

@@ -219,6 +219,93 @@ complete -c my-cli ...
 # CMDSYNC end
 ```
 
+## Custom directives
+
+Define your own directives in the config's `directives`, and use their names like a mode: `<!-- CMDSYNC quote start: my-cli greet -->`. Each one runs a command, then turns its output into what's written, with a `template`, a `formatter` module, or both:
+
+```json
+{
+  "directives": {
+    "quote": { "template": "{output|quote}" },
+    "usage": { "mode": "codeblock", "lang": "text", "command": "{cmd} --help" },
+    "version": { "mode": "line", "command": "my-cli --version", "template": "**{params.label|default:Version}:** `{output|trim}`" },
+    "terminal": { "formatter": "./scripts/terminal.ts" }
+  }
+}
+```
+
+```markdown
+<!-- CMDSYNC usage: my-cli -->
+<!-- CMDSYNC version label=Latest: - -->
+<!-- CMDSYNC terminal start lang=fish caption=Install: my-cli install -->
+<!-- CMDSYNC end -->
+```
+
+| Key | Meaning |
+| --- | --- |
+| `mode` | The built-in mode that writes the result: `region` (default), `line`, `codeblock`, `console`, `console-pretty`. `start` and the end marker work the same as for that mode. |
+| `command` | The command to run, with `{cmd}` for what the directive says (default: `{cmd}`). Any placeholder below works except the output ones. |
+| `lang`, `format` | Defaults for `lang=` and `format=`. `format` applies to the output before the formatter and template. |
+| `template` | The text written, with placeholders and filters (below). Runs after `formatter`, with its result as `{output}`. |
+| `formatter` | A JS or TS module, relative to the config root. Its default export (or `format` export) gets the output and returns what's written. |
+| `description` | Free text for people reading the config. |
+
+On top of `format=`, `lang=` and `include=`, a custom directive takes any `key=value` word, which its template sees as `{params.key}` and its formatter as `ctx.params.key`. Values can use letters, digits and `_ . - + # / @ ~` (no spaces). [`examples/custom-directives`](examples/custom-directives) has a working setup of each kind.
+
+### Templates
+
+| Placeholder | Value |
+| --- | --- |
+| `{output}` | the command's output (after `format=`), or the formatter's result |
+| `{cmd}` | the command as written in the directive |
+| `{command}` | the command that ran (the custom directive's `command`, filled in) |
+| `{name}`, `{mode}`, `{lang}` | the directive's name, base mode, and `lang=` |
+| `{file}`, `{dir}`, `{line}` | the file with the directive (relative to the config root), its directory, the directive's line |
+| `{marker}` | the config's marker |
+| `{date}`, `{datetime}`, `{year}` | when it ran (UTC): `2026-11-02`, ISO 8601, `2026` |
+| `{fence}` | a backtick fence longer than any inside `{output}`: `{fence}sh` … `{fence}` |
+| `{env.NAME}` | an environment variable (the config's `env` included) |
+| `{params.NAME}` | a `NAME=value` word of the directive |
+
+Filters run left to right: `{output|trim|quote}`.
+
+| Filter | Does |
+| --- | --- |
+| `trim` | strips surrounding whitespace |
+| `quote`, `quote:<prefix>` | prefixes every line with `> ` (or `<prefix>`) |
+| `indent`, `indent:<n or text>` | indents every non-empty line by 2 spaces (or `n` spaces, or `text`) |
+| `code`, `code:<lang>` | wraps it in a fenced code block of `lang=` (or `<lang>`) |
+| `first`, `last`, `lines` | the first line, the last line, the number of lines |
+| `upper`, `lower` | changes case |
+| `json`, `html` | JSON string literal; html-escaped |
+| `default:<text>` | `<text>` when empty; also makes an unset `{params.x}` or `{env.X}` optional |
+
+`{{` and `}}` are literal braces. An unknown placeholder or filter, or an unset `{params.x}` without `|default`, fails the directive with an error saying which.
+
+### Formatters
+
+A formatter is a function from the directive's context to the text that's written. In `region` mode that's the whole region, so it can add anything around the output: quotes, a code block for the command and another for its output, a caption, ... Import the types from `cmdsync` (installed as a dev dependency) to write it with completions and checks:
+
+```ts
+// scripts/terminal.ts
+import { defineFormatter } from 'cmdsync';
+
+export default defineFormatter(ctx => [
+  ...ctx.params.caption ? [`*${ctx.params.caption}*`, ''] : [],
+  ctx.fence(ctx.cmd, ctx.lang ?? 'sh'),
+  '',
+  ctx.fence(ctx.output, 'txt'),
+].join('\n'));
+```
+
+`ctx` (`FormatterContext`) has:
+
+- `output`, `cmd`, `command`, `name`, `mode`, `lang`, `params`: as in the templates above
+- `file` (absolute), `line` (1-based), `config` (the resolved config)
+- helpers: `fence(text, lang?)`, `quote(text, prefix?)`, `indent(text, by?)`, and `render(template)` to fill a template string with this directive's placeholders
+
+It runs synchronously and must return a string; if it throws, the directive fails with that message and keeps its content. `.ts` formatters run with Node's built-in type stripping (Node `>=22.18`), so they can't use TypeScript-only syntax like `enum`. `cmdsync lint` reports formatters that fail to load, without running anything.
+
 ## Comment syntax
 
 The comment syntax is picked from the file name. Line comments like `#` have no closing delimiter, so in those files the directive runs to the end of its line and regions are block-only.
@@ -283,7 +370,7 @@ yarn add -D cmdsync
 npx cmdsync --help
 ```
 
-Requires Node.js `>=22.17`.
+Requires Node.js `>=22.18`.
 
 `cmdsync init` writes a starter `cmdsync.json` (or, with `--package-json`, a `"cmdsync"` key in `package.json`) and prints the next steps. It leaves an existing config alone, and points at [`cmdsync migrate`](#migrating-from-update-codeblocks) when it finds an `update-codeblocks` one.
 
@@ -972,10 +1059,12 @@ Repositories are updated in parallel (a matrix with `fail-fast: false`), so one 
 | `title` | `docs: update for <A's name> <version>` | PR title and commit message |
 | `app-id` | `''` | GitHub App id (with the `app-private-key` secret) |
 
-## API
+## Using it as a library
+
+Everything the CLI does is exported, with types, so another tool can run cmdsync, or just its pieces:
 
 ```ts
-import { resolveConfig, run, unifiedDiff, updateRegions } from 'cmdsync';
+import { loadFormatters, renderTemplate, resolveConfig, run, unifiedDiff, updateRegions } from 'cmdsync';
 
 // whole run, the same as the CLI
 const results = run(resolveConfig({ cwd: process.cwd() }), { write: false });
@@ -986,13 +1075,33 @@ const linted = run(resolveConfig({ cwd: process.cwd() }), { lint: true });
 // `--diff`
 const patch = results.map(r => unifiedDiff(r.original, r.content, { path: r.file })).join('');
 
+// custom directives with formatters: load them first (it's async), then run
+const config = resolveConfig({ cwd: process.cwd() });
+const withFormatters = run(config, { formatters: await loadFormatters(config) });
+
 // pure transform with your own command runner
 const syntax = { open: '<!--', close: '-->', fences: true, marker: 'CMDSYNC', endMarker: 'CMDSYNC end' };
 const { content, results: regions } = updateRegions(markdown, syntax, cmd => ({
   output: `ran ${cmd}`,
   status: 0,
 }));
+
+// the template engine on its own
+renderTemplate('{output|trim|quote}', { output: 'hello\n' }); // '> hello'
 ```
+
+The main pieces:
+
+| Export | What it is |
+| --- | --- |
+| `resolveConfig`, `findConfig`, `validateConfig` | config loading (with `defaults` for a global config) |
+| `run`, `processFile`, `collectFiles` | a whole run, one file, or the files a config includes |
+| `updateRegions`, `findDirectives` | the scanner, as a pure text transform |
+| `loadFormatters`, `renderTemplate`, `defineFormatter`, `Formatter`, `FormatterContext` | custom directives |
+| `formatOutput`, `mdTable`, `htmlTable` | the `format=` table renderers |
+| `unifiedDiff`, `diffLines` | `--diff` |
+| `planMigration`, `migrateDirectives` | `cmdsync migrate` |
+| `loadGlobalConfig`, `selectRepos` | the global config and `--all`/`--group`/`--repo` |
 
 ## Migrating from `update-codeblocks`
 

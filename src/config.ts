@@ -19,6 +19,30 @@ export interface SyntaxRule {
   fences?: boolean;
 }
 
+/** Built-in modes a custom directive can build on (kept here so config.ts doesn't depend on the scanner) */
+export const BASE_MODES = ['region', 'line', 'codeblock', 'console', 'console-pretty'] as const;
+
+/**
+ * A directive defined in the config, used like a mode: `<!-- CMDSYNC name start: args -->`.
+ * The command runs, then `formatter` and/or `template` turn its output into what's written.
+ */
+export interface CustomDirective {
+  /** The built-in mode that writes the result (default: `region`) */
+  mode?: typeof BASE_MODES[number];
+  /** The command to run, with `{cmd}` for what the directive says (default: `{cmd}`) */
+  command?: string;
+  /** Default `lang=` (codeblock and console modes) */
+  lang?: string;
+  /** Default `format=`, applied to the output before `formatter` and `template` */
+  format?: 'md-table' | 'html-table';
+  /** Text written, with `{output}`, `{cmd}`, `{file}`, ... placeholders and `|filters` (see the README) */
+  template?: string;
+  /** JS/TS module (relative to the config root) whose default export turns the output into what's written */
+  formatter?: string;
+  /** Shown by `cmdsync lint` and in docs */
+  description?: string;
+}
+
 /** Config as written by the user (every field is optional) */
 export interface UserConfig {
   /** Starts a directive: `<!-- MARKER start: command -->` */
@@ -59,6 +83,8 @@ export interface UserConfig {
    * `CMDSYNC_CHANGED_FILES`: the written files, one per line, relative to the config root.
    */
   postUpdate?: string[];
+  /** Custom directives by name, used like a mode: `<!-- CMDSYNC name: command -->` */
+  directives?: Record<string, CustomDirective>;
 }
 
 export interface ResolvedConfig extends Required<Omit<UserConfig, 'comment'>> {
@@ -81,6 +107,7 @@ export const DEFAULT_CONFIG = {
   timeout: 60_000,
   env: {},
   postUpdate: [],
+  directives: {},
 } satisfies UserConfig;
 
 /** `CMDSYNC` → `CMDSYNC end` */
@@ -113,6 +140,23 @@ const isSyntaxRule = (v: unknown) =>
   (v.endMarker === undefined || isEndMarker(v.endMarker)) &&
   (v.fences === undefined || typeof v.fences === 'boolean');
 
+/** Names that can't be custom directives, since the directive grammar already uses them */
+const RESERVED = new Set<string>([...BASE_MODES, 'start', 'end']);
+
+const isCustomDirective = (v: unknown) =>
+  isObject(v) &&
+  Object.keys(v).every(k => ['mode', 'command', 'lang', 'format', 'template', 'formatter', 'description'].includes(k)) &&
+  (v.mode === undefined || (BASE_MODES as readonly unknown[]).includes(v.mode)) &&
+  (v.command === undefined || (typeof v.command === 'string' && v.command.trim().length > 0)) &&
+  (v.lang === undefined || (typeof v.lang === 'string' && /^[\w.+#-]+$/.test(v.lang))) &&
+  (v.format === undefined || v.format === 'md-table' || v.format === 'html-table') &&
+  (v.template === undefined || typeof v.template === 'string') &&
+  (v.formatter === undefined || (typeof v.formatter === 'string' && v.formatter.length > 0)) &&
+  (v.description === undefined || typeof v.description === 'string');
+
+const isDirectives = (v: unknown) =>
+  isObject(v) && Object.entries(v).every(([name, d]) => /^[a-z][\w-]*$/.test(name) && !RESERVED.has(name) && isCustomDirective(d));
+
 /** Throws a readable error for any unknown key or wrongly typed value */
 export function validateConfig(value: unknown, source: string): UserConfig {
   if (!isObject(value)) throw new Error(`${source}: config must be an object`);
@@ -132,6 +176,7 @@ export function validateConfig(value: unknown, source: string): UserConfig {
     timeout: v => typeof v === 'number' && v > 0,
     env: v => isObject(v) && Object.values(v).every(e => typeof e === 'string'),
     postUpdate: v => isStringArray(v) && v.every(c => c.trim().length > 0),
+    directives: isDirectives,
   };
 
   Object.entries(value).forEach(([key, v]) => {
@@ -186,7 +231,7 @@ export function loadConfigFile(path: string): { config: UserConfig; root: string
 
 /**
  * Built-in defaults < `defaults` (the global config's) < the config file < `overrides` (CLI flags).
- * `install` and `env` merge key by key; every other key is replaced.
+ * `install`, `env` and `directives` merge key by key; every other key is replaced.
  */
 export function resolveConfig(
   options: { cwd?: string; configPath?: string; overrides?: UserConfig; defaults?: UserConfig; } = {},
@@ -199,6 +244,7 @@ export function resolveConfig(
     ...Object.assign({}, ...layers),
     install: Object.assign({}, ...layers.map(l => l.install)),
     env: Object.assign({}, ...layers.map(l => l.env)),
+    directives: Object.assign({}, ...layers.map(l => l.directives)),
   };
   return {
     ...DEFAULT_CONFIG,

@@ -1,4 +1,5 @@
 import { basename, extname } from 'node:path';
+import type { CustomDirective } from './config.js';
 
 /** How a comment is written in a given file type */
 export interface CommentSyntax {
@@ -20,6 +21,8 @@ export interface RegionSyntax extends CommentSyntax {
   marker: string;
   /** `<!-- MARKER end -->` */
   endMarker: string;
+  /** The config's custom directives, by name: `<!-- MARKER name: command -->` */
+  directives?: Record<string, CustomDirective>;
 }
 
 const html: CommentSyntax = { open: '<!--', close: '-->', fences: false };

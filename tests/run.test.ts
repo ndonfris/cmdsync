@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
 import { resolveConfig } from '../src/config.js';
-import { run } from '../src/index.js';
+import { loadFormatters, run } from '../src/index.js';
 import { commandBinaries, createRunner, onPath, runPostUpdate, unrecognizedBinaries } from '../src/run.js';
 
 describe('commandBinaries', () => {
@@ -155,6 +155,16 @@ describe('examples', () => {
     assert.equal(results.length, 2);
     for (const { file, changed, regions } of results) {
       assert.deepEqual(regions.map(r => r.kind), regions.map(() => 'updated'), file);
+      assert.equal(changed, false, `${file} is out of date: run \`yarn docs:examples\``);
+    }
+  });
+
+  it('examples/custom-directives docs are in sync, through templates and a .ts formatter', async () => {
+    const config = resolveConfig({ configPath: join(import.meta.dirname, '..', 'examples', 'custom-directives', 'cmdsync.json') });
+    const results = run(config, { write: false, formatters: await loadFormatters(config) });
+    assert.equal(results.length, 1);
+    for (const { file, changed, regions } of results) {
+      assert.deepEqual(regions.map(r => r.kind === 'updated' && r.directive.options.custom), ['version', 'usage', 'quote', 'terminal', 'greet'], file);
       assert.equal(changed, false, `${file} is out of date: run \`yarn docs:examples\``);
     }
   });

@@ -11,7 +11,11 @@ import type { ResolvedConfig } from './config.ts';
  */
 export function commandBinaries(command: string): string[] {
   // quoted text is arguments, not commands: `node -p "a(b) | c"` runs only node
-  const unquoted = command.replace(/'[^']*'|"(?:\\.|[^"\\])*"/g, '""');
+  const unquoted = command.replace(/'[^']*'|"(?:\\.|[^"\\])*"/g, '""')
+    // redirections (`2>&1`, `>&2`, `<&3`, `&>file`, `&>>file`) aren't `&` separators
+    .replace(/\d*[<>]&\d*-?|&>>?/g, ' ')
+    // arithmetic (`$((1 + 2))`) isn't a command
+    .replace(/\$\(\((?:[^()]|\([^()]*\))*\)\)/g, '""');
   return unquoted
     .split(/\|\|?|&&?|;|\n|\$\(|`|\(|\)/)
     .map(segment => segment.trim().split(/\s+/).filter(word => !/^\w+=/.test(word))[0])

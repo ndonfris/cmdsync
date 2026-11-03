@@ -439,6 +439,10 @@ Commands:
 
 Options:
   -c, --config <file>      Config file (cmdsync.json or package.json)
+      --show               Print the config (--config, or the nearest one) and
+                           exit; for package.json, its "cmdsync" key
+      --edit               Open the config in $VISUAL / $EDITOR / vi, and check
+                           it when the editor exits
       --check              Don't write; exit 1 if any region is out of date
   -n, --dry-run            Don't write; report what would change
   -d, --diff               Don't write; print a unified diff of what would
@@ -600,6 +604,14 @@ When both exist in the same directory, `cmdsync.json` wins. Relative paths (`inc
 | `timeout` | `number` | `60000` | Per-command timeout in ms |
 | `env` | `Record<string, string>` | `{}` | Extra environment variables for every command |
 | `postUpdate` | `string[]` | `[]` | Commands run after an update that wrote files, see [post-update commands](#post-update-commands) |
+
+`cmdsync --show` prints the config in use (with `--config <file>`, that one), and `cmdsync --edit` opens it in `$VISUAL` or `$EDITOR` (`vi` if neither is set), then checks it when the editor exits, so a typo is reported right away. For a `package.json`, `--show` prints just its `"cmdsync"` key, and `--edit` opens the whole file. A broken config can still be shown and edited.
+
+```fish
+cmdsync --show
+cmdsync --edit --config docs/cmdsync.json
+EDITOR="code --wait" cmdsync --edit --show   # edit, then print the result
+```
 
 ### `cmdsync.json`
 

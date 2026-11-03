@@ -1,8 +1,9 @@
 #!/usr/bin/env node
+import { spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { type UserConfig, resolveConfig } from './config.js';
+import { PACKAGE_JSON_KEY, type UserConfig, loadConfigFile, locateConfig, resolveConfig } from './config.js';
 import { completionScript } from './completions.js';
 import { gitRoot, gitStatus, installHook, stage } from './git.js';
 import { contractHome, expandHome, globalConfigPath, loadGlobalConfig, repoName, saveGlobalConfig, selectRepos } from './global.js';
@@ -69,6 +70,10 @@ Commands:
 
 Options:
   -c, --config <file>      Config file (cmdsync.json or package.json)
+      --show               Print the config (--config, or the nearest one) and
+                           exit; for package.json, its "cmdsync" key
+      --edit               Open the config in $VISUAL / $EDITOR / vi, and check
+                           it when the editor exits
       --check              Don't write; exit 1 if any region is out of date
   -n, --dry-run            Don't write; report what would change
   -d, --diff               Don't write; print a unified diff of what would
@@ -227,6 +232,44 @@ function lintReport(results: FileResult[], config: ReturnType<typeof resolveConf
   return errors > 0 ? 1 : 0;
 }
 
+/**
+ * `--show` / `--edit`: print the config (just the `"cmdsync"` key of a package.json),
+ * or open it in $VISUAL / $EDITOR / vi and check it once the editor exits.
+ */
+function showOrEdit(values: Values, positionals: string[], subcommand: string | undefined): number {
+  if (subcommand || positionals.length > 0) throw new Error('--show and --edit only work with --config <file> (or the nearest config), not with commands or paths');
+  const file = values.config ? resolve(values.config) : locateConfig(process.cwd());
+  if (!file) throw new Error('no cmdsync.json or package.json "cmdsync" key found here or above: create one with `cmdsync init`, or pass --config <file>');
+  if (!existsSync(file)) throw new Error(`Config file does not exist: ${file}`);
+
+  if (values.edit) {
+    const editor = process.env.VISUAL || process.env.EDITOR || 'vi';
+    // through the shell, so an editor with arguments (`code --wait`) works
+    const quoted = `'${file.replace(/'/g, `'\\''`)}'`;
+    const { status, error } = spawnSync(`${editor} ${quoted}`, { shell: true, stdio: 'inherit' });
+    if (error || status !== 0) throw new Error(`${editor} ${error ? `failed: ${error.message}` : `exited with status ${status}`}`);
+    try {
+      loadConfigFile(file);
+    } catch (err) {
+      console.error(`cmdsync: the config is invalid now: ${(err as Error).message}`);
+      return 1;
+    }
+    if (!values.show) console.error(`${file} is valid`);
+  }
+  if (values.show) {
+    const text = readFileSync(file, 'utf-8');
+    if (file.endsWith('package.json')) {
+      const json = JSON.parse(text) as Record<string, unknown>;
+      if (!(PACKAGE_JSON_KEY in json)) throw new Error(`${file} has no "${PACKAGE_JSON_KEY}" key`);
+      console.log(JSON.stringify(json[PACKAGE_JSON_KEY], null, 2));
+    } else {
+      process.stdout.write(text.endsWith('\n') ? text : `${text}\n`);
+    }
+    if (!values.quiet) console.error(`(${file}${file.endsWith('package.json') ? `#${PACKAGE_JSON_KEY}` : ''})`);
+  }
+  return 0;
+}
+
 const RUN_COMMANDS = ['update', 'status', 'check', 'lint'] as const;
 type RunCommand = typeof RUN_COMMANDS[number];
 
@@ -381,6 +424,7 @@ async function main(argv: string[]): Promise<number> {
     const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf-8'));
     return console.log(pkg.version), 0;
   }
+  if (values.show || values.edit) return showOrEdit(values, positionals, subcommand);
 
   const overrides: UserConfig = {
     ...values.marker && { marker: values.marker },

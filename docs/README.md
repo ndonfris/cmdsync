@@ -56,12 +56,12 @@ Start with [Getting started](getting-started.md), then read whichever guide you 
    - [Without the action](github-actions.md#without-the-action)
    - [Updating other repositories on release](github-actions.md#updating-other-repositories-on-release)
 10. **[Generating docs from your source code](generating-docs.md)**: A worked example: tables generated from TypeScript source
-   - [Using it from other repositories](generating-docs.md#using-it-from-other-repositories)
+    - [Using it from other repositories](generating-docs.md#using-it-from-other-repositories)
 11. **[Using it as a library](library.md)**: The API
 12. **[Migrating from `update-codeblocks`](migrating.md)**: `cmdsync migrate`
 13. **[Development](development.md)**: Building from source, tests, releasing
-   - [Building from source](development.md#building-from-source)
-   - [Publishing to npm](development.md#publishing-to-npm)
+    - [Building from source](development.md#building-from-source)
+    - [Publishing to npm](development.md#publishing-to-npm)
 <!-- CMDSYNC end -->
 
 [← Back to the README](../README.md)

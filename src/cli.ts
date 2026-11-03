@@ -7,6 +7,7 @@ import { parseArgs } from 'node:util';
 import {
   type ConfigLayer, PACKAGE_JSON_KEY, type UserConfig, loadConfigFile, locateConfig, resolveConfig, resolveConfigSources,
 } from './config.ts';
+import { complete } from './complete.ts';
 import { completionScript } from './completions.ts';
 import { gitRoot, gitStatus, installHook, stage } from './git.ts';
 import { contractHome, expandHome, globalConfigPath, loadGlobalConfig, repoName, saveGlobalConfig, selectRepos } from './global.ts';
@@ -145,6 +146,22 @@ const annotate = (level: 'error' | 'warning', file: string, line: number, messag
   const escape = (s: string) => s.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
   console.log(`::${level} file=${escape(file)},line=${line},title=cmdsync::${escape(message)}`);
 };
+
+/**
+ * `cmdsync __complete <words...>`, for the completion scripts: a line with what else the
+ * shell should complete (`files`, `commands` or `none`), then `value<TAB>description` lines.
+ * Never fails, so a broken config or global config can't break TAB.
+ */
+function completeWords(words: string[]): number {
+  let result: ReturnType<typeof complete> = { values: [] };
+  try {
+    result = complete(words);
+  } catch {
+    // nothing to suggest
+  }
+  process.stdout.write([result.then ?? 'none', ...result.values.map(c => `${c.value}\t${c.description}`)].join('\n') + '\n');
+  return 0;
+}
 
 function completions(args: string[]): number {
   const [shell] = args;
@@ -529,6 +546,7 @@ function migrate(args: string[]): number {
 }
 
 async function main(argv: string[]): Promise<number> {
+  if (argv[0] === '__complete') return completeWords(argv.slice(1));
   if (argv[0] === 'completions') return completions(argv.slice(1));
   if (argv[0] === 'migrate') return migrate(argv.slice(1));
   if (argv[0] === 'hook') return hook(argv.slice(1));

@@ -1,10 +1,16 @@
 /** CLI options and subcommands, shared by argument parsing and the completion scripts */
 
+/** Where an option can be used: `''` is `cmdsync` with no subcommand */
+export type Context = '' | 'update' | 'status' | 'check' | 'lint' | 'init' | 'repos' | 'migrate' | 'completions' | 'hook';
+
 export interface CliOption {
   long: string;
   short?: string;
-  /** What the option's value completes to; boolean flags have none */
-  value?: 'file' | 'command' | 'text';
+  /**
+   * What the option's value completes to (boolean flags have none): files, directories,
+   * executables, nothing (`text`), or the global config's group or repo names
+   */
+  value?: 'file' | 'dir' | 'command' | 'text' | 'group' | 'repo';
   multiple?: boolean;
   /** Also accepts `--no-<long>` */
   negatable?: boolean;
@@ -29,12 +35,79 @@ export const OPTIONS: CliOption[] = [
   { long: 'install', negatable: true, description: 'Install every binary a directive uses (--no-install: never install)' },
   { long: 'post-update-cmds', negatable: true, description: 'Run the postUpdate commands even if nothing changed (--no-post-update-cmds: never)' },
   { long: 'all', description: 'Run in every repository of the global config' },
-  { long: 'group', short: 'g', value: 'text', multiple: true, description: 'Run in the global config repositories of a group, repeatable' },
-  { long: 'repo', short: 'r', value: 'text', multiple: true, description: 'Run in a global config repository, by name or path, repeatable' },
+  { long: 'group', short: 'g', value: 'group', multiple: true, description: 'Run in the global config repositories of a group, repeatable' },
+  { long: 'repo', short: 'r', value: 'repo', multiple: true, description: 'Run in a global config repository, by name or path, repeatable' },
   { long: 'quiet', short: 'q', description: 'Only print errors' },
   { long: 'verbose', description: 'Also print every file scanned and every command run, with timings' },
   { long: 'help', short: 'h', description: 'Show help' },
   { long: 'version', short: 'v', description: 'Show version' },
+];
+
+/** The run commands: plain `cmdsync`, and `update`, `status`, `check` */
+const RUN: Context[] = ['', 'update', 'status', 'check'];
+
+/**
+ * Where each option of `OPTIONS` is accepted, mirroring the CLI's checks (`update` takes no
+ * --check/--dry-run/--diff, `lint` runs and writes nothing, ...); used by the completions.
+ */
+export const OPTION_CONTEXTS: Record<string, Context[]> = {
+  config: [...RUN, 'lint'],
+  show: [''],
+  resolved: [''],
+  edit: [''],
+  check: [''],
+  'dry-run': [''],
+  interactive: ['', 'update'],
+  diff: ['', 'check'],
+  staged: ['', 'update'],
+  marker: [...RUN, 'lint'],
+  'end-marker': [...RUN, 'lint'],
+  comment: [...RUN, 'lint'],
+  shell: [...RUN, 'lint'],
+  command: [...RUN, 'lint'],
+  install: RUN,
+  'post-update-cmds': ['', 'update'],
+  all: [...RUN, 'lint'],
+  group: [...RUN, 'lint'],
+  repo: [...RUN, 'lint'],
+  quiet: [...RUN, 'lint'],
+  verbose: [...RUN, 'lint'],
+  help: [''],
+  version: [''],
+};
+
+/** Options of the subcommands that parse their own (`init`, `repos`, `migrate`) */
+export const SUBCOMMAND_OPTIONS: Partial<Record<Context, CliOption[]>> = {
+  init: [
+    { long: 'package-json', description: 'Write a "cmdsync" key in package.json instead of cmdsync.json' },
+    { long: 'add', description: 'init global: also add this repository' },
+    { long: 'name', value: 'text', description: 'init global --add: the repository\'s name' },
+    { long: 'group', value: 'group', multiple: true, description: 'init global --add: a group for the repository, repeatable' },
+  ],
+  repos: [
+    { long: 'name', value: 'text', description: 'repos add: the repository\'s name' },
+    { long: 'group', value: 'group', multiple: true, description: 'repos add: a group for the repository, repeatable' },
+  ],
+  migrate: [
+    { long: 'dry-run', short: 'n', description: 'Only list what would change' },
+    { long: 'diff', short: 'd', description: 'Show the changes, without writing' },
+    { long: 'quiet', short: 'q', description: 'Only print errors' },
+    { long: 'from', short: 'f', value: 'text', multiple: true, description: 'Also convert directives of this marker, repeatable' },
+  ],
+};
+
+/**
+ * Options that can't be used together (each also excludes its `--no-` form), as the
+ * CLI rejects them; spelled without dashes. Symmetric: listing a pair once is enough.
+ */
+export const CONFLICTS: [string, string[]][] = [
+  ['staged', ['check', 'dry-run', 'diff', 'interactive', 'all', 'group', 'repo']],
+  ['interactive', ['check', 'dry-run', 'diff']],
+  ['post-update-cmds', ['check', 'dry-run', 'diff']],
+  ['quiet', ['verbose']],
+  ['config', ['all', 'group', 'repo']],
+  ...['show', 'edit', 'resolved'].map((meta): [string, string[]] =>
+    [meta, ['check', 'dry-run', 'diff', 'staged', 'interactive', 'install', 'no-install', 'post-update-cmds', 'no-post-update-cmds', 'all', 'group', 'repo', 'verbose']]),
 ];
 
 export interface Subcommand {

@@ -381,6 +381,8 @@ npx cmdsync --help
 
 Requires Node.js `>=22.18`.
 
+A global install (`npm i -g cmdsync`) also installs a man page: `man cmdsync`.
+
 `cmdsync init` writes a starter `cmdsync.json` (or, with `--package-json`, a `"cmdsync"` key in `package.json`) and prints the next steps. It leaves an existing config alone, and points at [`cmdsync migrate`](#migrating-from-update-codeblocks) when it finds an `update-codeblocks` one.
 
 ## CLI
@@ -596,7 +598,14 @@ It's quick and has no side effects, so it suits an editor task or the first step
 
 `cmdsync completions <shell>` prints a completion script for `bash`, `zsh`, `fish` or `nu`. The scripts are generated from the same option table the CLI parses, so they always match the installed version. POSIX `sh` has no completion system, so it isn't supported.
 
-`cmdsync <TAB>` lists only the subcommands, with their descriptions where the shell shows them. Files and directories are offered once the word being completed looks like a path: it contains a `/`, or starts with `.` or `~` (`cmdsync ./<TAB>`, `cmdsync docs/<TAB>`, `cmdsync ~/<TAB>`, `cmdsync .git<TAB>`). The same goes for the paths after `update`, `status`, `check` and `lint`. Options that take a file, like `--config`, always complete files, and `-<TAB>` lists the options.
+Completions follow what the CLI accepts at the cursor:
+
+- `cmdsync <TAB>` lists the subcommands, with their descriptions where the shell shows them.
+- `cmdsync update <TAB>` (any subcommand, or after any option), or `-<TAB>`, lists the options usable there: `update` doesn't offer `--check`, `lint` doesn't offer `--install`, `migrate` lists its own. Options already given are left out (unless they can repeat), and so are the ones that can't go with them: after `--staged` there's no `--check`, `--dry-run`, `--diff`, `--interactive` or `--all`, after `-q` no `--verbose`, after `--install` no `--no-install`.
+- An option that takes a value completes only that value: `--config <TAB>` lists files, `--shell <TAB>` commands, `--repo`/`--group <TAB>` the [global config](#multiple-repositories)'s names; the other options come back once the value is there.
+- Paths are offered once the word being completed looks like one: it has a `/`, or starts with `.` or `~` (`cmdsync ./<TAB>`, `cmdsync docs/<TAB>`).
+
+The scripts get all of this from `cmdsync __complete <words...>`, so the rules are the same in every shell, and always match the installed version. (In nushell, which checks options against a command's signature, typing `-` lists every option of that subcommand; `<TAB>` after a word uses the filtered list.)
 
 ```fish
 # bash: in ~/.bashrc
@@ -1219,6 +1228,7 @@ yarn test:watch     # build + test on every change, with a timestamped ✓/✗ l
 yarn typecheck
 yarn build          # emits dist/
 yarn docs           # regenerate this README's regions with cmdsync itself
+yarn build:man      # regenerate man/cmdsync.1 from the CLI's option tables (yarn build runs it too)
 ```
 
 ### Building from source

@@ -104,7 +104,11 @@ const markerMention = (syntax: RegionSyntax) =>
 export const endPattern = (syntax: RegionSyntax) =>
   new RegExp(`${escapeRegExp(syntax.open)}\\s*${markerPattern(syntax.endMarker)}\\s*${closeOrEol(syntax)}`);
 
-export const openingFence = (line: string) => line.match(/^(\s*)(`{3,}|~{3,})(.*)$/);
+/**
+ * A fence opening a code block: \`\`\` or ~~~, indented or inside a blockquote (`> \`\`\``).
+ * The prefix (group 1) is what the block's lines start with, so a replaced body keeps it.
+ */
+export const openingFence = (line: string) => line.match(/^((?:\s*>)*\s*)(`{3,}|~{3,})(.*)$/);
 
 /** A backtick fence longer than any fence-like line in `body`, so the body can't close it */
 const fenceFor = (body: string) =>
@@ -112,7 +116,7 @@ const fenceFor = (body: string) =>
 
 /** A closing fence uses the same character, is at least as long, and has nothing after it */
 const isClosingFence = (line: string, fence: string) => {
-  const match = line.match(/^\s*(`{3,}|~{3,})\s*$/)?.[1];
+  const match = line.match(/^(?:\s*>)*\s*(`{3,}|~{3,})\s*$/)?.[1];
   return !!match && match[0] === fence[0] && match.length >= fence.length;
 };
 
@@ -237,7 +241,12 @@ export function findDirectives(content: string, syntax: RegionSyntax): Directive
   return found;
 }
 
-const indent = (text: string, prefix: string) => prefix ? text.replace(/^(?=.)/gm, prefix) : text;
+/** Prefix every non-empty line; inside a blockquote, blank lines keep their `>` so the quote doesn't end */
+const indent = (text: string, prefix: string) => {
+  if (!prefix) return text;
+  if (!prefix.includes('>')) return text.replace(/^(?=.)/gm, prefix);
+  return text.split('\n').map(line => line ? `${prefix}${line}` : prefix.trimEnd()).join('\n');
+};
 
 /** Remove the indentation every non-blank line shares */
 const dedent = (text: string) => {

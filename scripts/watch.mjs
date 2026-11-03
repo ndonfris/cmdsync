@@ -171,7 +171,7 @@ async function cycle(changed = []) {
       console.log(state.files === 'failed' ? 'No failed tests left: press a to run them all.' : `No test files match "${state.pattern}".`);
     } else {
       const tap = join(tmpdir(), `cmdsync-watch-${process.pid}.tap`);
-      ok = await runScript(run, state.coverage ? 'test:coverage' : 'test', ['--test-reporter=spec', '--test-reporter-destination=stdout', '--test-reporter=tap', `--test-reporter-destination=${tap}`, ...files]);
+      ok = await runScript(run, state.coverage ? 'test:coverage' : 'test', ['--test-reporter=tap', `--test-reporter-destination=${tap}`, ...files]);
       // what failed this time, for `f`; a run that passed clears it
       if (!run.stopped) mode.failed = ok ? [] : existsSync(tap) ? failedFiles(readFileSync(tap, 'utf-8')) : [];
       rmSync(tap, { force: true });

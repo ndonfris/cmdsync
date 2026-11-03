@@ -53,6 +53,12 @@ export interface UserConfig {
   timeout?: number;
   /** Extra environment variables passed to every command */
   env?: Record<string, string>;
+  /**
+   * Commands run, in order, after an update wrote at least one file (`prettier --write .`,
+   * `git add -A docs`, ...). Same shell, cwd and env as directives, plus
+   * `CMDSYNC_CHANGED_FILES`: the written files, one per line, relative to the config root.
+   */
+  postUpdate?: string[];
 }
 
 export interface ResolvedConfig extends Required<Omit<UserConfig, 'comment'>> {
@@ -74,6 +80,7 @@ export const DEFAULT_CONFIG = {
   cwd: '.',
   timeout: 60_000,
   env: {},
+  postUpdate: [],
 } satisfies UserConfig;
 
 /** `CMDSYNC` → `CMDSYNC end` */
@@ -124,6 +131,7 @@ export function validateConfig(value: unknown, source: string): UserConfig {
     cwd: v => typeof v === 'string',
     timeout: v => typeof v === 'number' && v > 0,
     env: v => isObject(v) && Object.values(v).every(e => typeof e === 'string'),
+    postUpdate: v => isStringArray(v) && v.every(c => c.trim().length > 0),
   };
 
   Object.entries(value).forEach(([key, v]) => {

@@ -4,11 +4,16 @@ import { parseArgs } from 'node:util';
 import { type UserConfig, resolveConfig } from './config.js';
 import { completionScript } from './completions.js';
 import { gitRoot, gitStatus, installHook, stage } from './git.js';
-import { type FileResult, type InstallEvent, type RegionResult, directiveSource, displayPath, missingBinaries, run, unifiedDiff } from './index.js';
+import {
+  type FileResult, type InstallEvent, type RegionResult,
+  directiveSource, displayPath, missingBinaries, run, runPostUpdate, unifiedDiff,
+} from './index.js';
 import { PARSE_OPTIONS, SHELLS, type Shell } from './options.js';
 
 const HELP = `\
-Usage: cmdsync [options] [paths...]
+Usage: cmdsync [update] [options] [paths...]
+       cmdsync status [options] [paths...]
+       cmdsync check [options] [paths...]
        cmdsync lint [options] [paths...]
        cmdsync completions <bash|zsh|fish|nu>
        cmdsync hook install
@@ -28,6 +33,11 @@ Arguments:
                            (default: the config's "include" globs)
 
 Commands:
+  update [paths...]        Regenerate every directive, write the files, then run
+                           the config's "postUpdate" commands (the default)
+  status [paths...]        Print a diff of what \`update\` would change, without
+                           writing (same as --dry-run --diff, but exits 0)
+  check [paths...]         Exit 1 if any region is out of date (same as --check)
   lint [paths...]          Check every directive without running commands or
                            writing, and list where each one is: invalid
                            options, missing end markers or includes, commands
@@ -55,7 +65,14 @@ Options:
                            a directive uses, even if it's already on PATH
       --no-install         Never run "install" commands (default: only for
                            binaries that aren't on PATH)
+      --post-update-cmds   Run the config's "postUpdate" commands even if no
+                           file changed
+      --no-post-update-cmds
+                           Never run "postUpdate" commands (default: run them
+                           after an update that wrote at least one file)
   -q, --quiet              Only print errors
+      --verbose            Also print every file scanned, and every command run
+                           with its exit status and time
   -h, --help               Show this help
   -v, --version            Show version
 
@@ -181,11 +198,15 @@ function lintReport(results: FileResult[], config: ReturnType<typeof resolveConf
   return errors > 0 ? 1 : 0;
 }
 
+const RUN_COMMANDS = ['update', 'status', 'check', 'lint'] as const;
+type RunCommand = typeof RUN_COMMANDS[number];
+
 function main(argv: string[]): number {
   if (argv[0] === 'completions') return completions(argv.slice(1));
   if (argv[0] === 'hook') return hook(argv.slice(1));
-  const lint = argv[0] === 'lint';
-  if (lint) argv = argv.slice(1);
+  const subcommand = RUN_COMMANDS.includes(argv[0] as RunCommand) ? argv[0] as RunCommand : undefined;
+  if (subcommand) argv = argv.slice(1);
+  const lint = subcommand === 'lint';
 
   const { values, positionals } = parseArgs({
     args: argv,
@@ -209,17 +230,37 @@ function main(argv: string[]): number {
   };
   const config = resolveConfig({ configPath: values.config, overrides });
   const log = (...msg: unknown[]) => values.quiet || console.log(...msg);
+  if (values.quiet && values.verbose) throw new Error('--quiet and --verbose cannot be combined');
+  const verbose = (...msg: unknown[]) => values.verbose && console.log(...msg);
+  /** Flags given that `subcommand` already decides */
+  const given = (names: readonly ('check' | 'dry-run' | 'diff' | 'staged')[]) => names.filter(n => values[n]);
+  const conflicts = {
+    update: given(['check', 'dry-run', 'diff']),
+    status: given(['check', 'staged']),
+    check: given(['staged']),
+  } as const;
+  if (subcommand && subcommand !== 'lint' && conflicts[subcommand].length > 0) {
+    const hint = subcommand === 'update' ? ' (use `cmdsync status` or `cmdsync check` instead)' : '';
+    throw new Error(`\`${subcommand}\` doesn't take --${conflicts[subcommand].join(', --')}${hint}`);
+  }
+  const check = values.check || subcommand === 'check';
+  const status = subcommand === 'status';
+  const dryRun = values['dry-run'] || status;
+  const diff = values.diff || status;
   if (lint) {
-    const conflicting = (['check', 'dry-run', 'diff', 'staged', 'install'] as const).filter(o => values[o] !== undefined && values[o] !== false);
+    const conflicting = (['check', 'dry-run', 'diff', 'staged', 'install', 'post-update-cmds'] as const).filter(o => values[o] !== undefined && values[o] !== false);
     if (conflicting.length > 0) throw new Error(`lint never runs commands or writes, so it doesn't take --${conflicting.join(', --')}`);
     log(`config: ${config.source ?? '(defaults)'}\n`);
     return lintReport(run(config, { paths: positionals, lint: true }), config, values.quiet);
   }
-  if (values.staged && (values.check || values['dry-run'] || values.diff)) {
+  if (values.staged && (check || dryRun || diff)) {
     throw new Error('--staged cannot be combined with --check, --dry-run or --diff');
   }
   // --staged writes (and stages) files itself, once it knows they're safe to stage
-  const write = !values.check && !values['dry-run'] && !values.diff && !values.staged;
+  const write = !check && !dryRun && !diff && !values.staged;
+  if (values['post-update-cmds'] && !write && !values.staged) {
+    throw new Error('--post-update-cmds only applies to an update that writes files');
+  }
   const color = process.stdout.isTTY && !process.env.NO_COLOR;
   const repo = values.staged ? gitRoot(config.root) : undefined;
   const git = repo ? { root: repo, ...gitStatus(repo) } : undefined;
@@ -227,7 +268,13 @@ function main(argv: string[]): number {
   let blocked = 0;
 
   log(`config: ${config.source ?? '(defaults)'}`);
-  log(`markers: ${config.marker} … ${config.endMarker}  shell: ${config.shell}${config.commands.length ? `  commands: ${config.commands.join(', ')}` : ''}\n`);
+  log(`markers: ${config.marker} … ${config.endMarker}  shell: ${config.shell}${config.commands.length ? `  commands: ${config.commands.join(', ')}` : ''}${values.verbose ? '' : '\n'}`);
+  verbose(`root: ${config.root}  cwd: ${config.cwd}  timeout: ${config.timeout}ms`);
+  verbose(`include: ${config.include.join(' ')}  exclude: ${config.exclude.join(' ')}`);
+  if (Object.keys(config.env).length) verbose(`env: ${Object.keys(config.env).join(', ')}`);
+  if (Object.keys(config.install).length) verbose(`install: ${Object.keys(config.install).join(', ')}`);
+  if (config.postUpdate.length) verbose(`postUpdate: ${config.postUpdate.join(' ; ')}`);
+  verbose('');
 
   const report = ({ file, changed, original, content, regions }: FileResult) => {
     const path = displayPath(file, config.root);
@@ -252,7 +299,7 @@ function main(argv: string[]): number {
       switch (region.kind) {
         case 'updated':
           log(`    ${region.changed ? (written ? 'updated' : 'outdated') : 'ok'}  ${at}  ${directiveSource(region.directive)}`);
-          if (region.changed && (values.check || values.diff) && isGithubActions) {
+          if (region.changed && (check || diff) && isGithubActions) {
             annotate('error', path, region.directive.line + 1, `Region is out of date, run \`cmdsync\` to regenerate it (${directiveSource(region.directive)})`);
           }
           break;
@@ -270,7 +317,7 @@ function main(argv: string[]): number {
       }
     }
     // the diff goes to stdout even with --quiet, since it's what was asked for
-    if (values.diff && changed) process.stdout.write(`\n${unifiedDiff(original, content, { path, color })}\n`);
+    if (diff && changed) process.stdout.write(`\n${unifiedDiff(original, content, { path, color })}\n`);
   };
 
   const onInstall = ({ bin, command, result }: InstallEvent) => {
@@ -279,8 +326,37 @@ function main(argv: string[]): number {
     if (result.output) console.error(result.output.trimEnd().replace(/^/gm, '            │ '));
   };
 
+  const onScan = (file: string, syntax: { open: string; close: string; fences: boolean; }) =>
+    verbose(`  scan  ${displayPath(file, config.root)}  (${[syntax.open, syntax.close].filter(Boolean).join(' ')}${syntax.fences ? ', markdown' : ''})`);
+  const onCommand = (command: string, result: { status: number; error?: string; }, ms: number) =>
+    verbose(`  $ ${command}  → ${result.error ?? `exit ${result.status}`} in ${Math.round(ms)}ms`);
+
   const install = values.install === undefined ? 'missing' : values.install ? 'always' : 'never';
-  const results = run(config, { paths: positionals, write, install, onFile: report, onInstall });
+  const results = run(config, {
+    paths: positionals, write, install, onFile: report, onInstall,
+    ...values.verbose && { onScan, onCommand },
+  });
+
+  // postUpdate commands run after files are written, and (with --staged) before they're staged,
+  // so whatever they change in those files is committed too
+  const written = git ? toStage : results.filter(r => r.written).map(r => r.file);
+  const postUpdate = values['post-update-cmds'];
+  const runPost = (write || !!git) && config.postUpdate.length > 0 && postUpdate !== false && (postUpdate || written.length > 0);
+  let postFailed = false;
+  if (runPost) {
+    log('');
+    for (const { command, result } of runPostUpdate(config, written)) {
+      if (result.status === 0 && !result.error) {
+        log(`postUpdate  ${command}`);
+        if (values.verbose && result.output.trim()) console.log(result.output.trimEnd().replace(/^/gm, '            │ '));
+        continue;
+      }
+      postFailed = true;
+      console.error(`postUpdate failed  ${command}\n            ${result.error ?? `exited with status ${result.status}`}`);
+      if (result.output) console.error(result.output.trimEnd().replace(/^/gm, '            │ '));
+      if (isGithubActions) annotate('error', displayPath((config.source ?? 'cmdsync.json').replace(/#.*/, ''), config.root), 1, `postUpdate \`${command}\` failed`);
+    }
+  }
   if (git) stage(git.root, toStage);
   const regions = results.flatMap(r => r.regions);
   const failed = regions.filter(r => r.kind !== 'updated').length;
@@ -303,7 +379,7 @@ function main(argv: string[]): number {
     appendFileSync(process.env.GITHUB_OUTPUT, `changed=${stale.length > 0}\nfailed=${failed}\n`);
   }
 
-  return failed > 0 || blocked > 0 || ((values.check || values.diff) && stale.length > 0) ? 1 : 0;
+  return failed > 0 || blocked > 0 || postFailed || ((check || (diff && !status)) && stale.length > 0) ? 1 : 0;
 }
 
 try {

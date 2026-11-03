@@ -260,7 +260,9 @@ Requires Node.js `>=22.17`.
 
 <!-- CMDSYNC codeblock: tsx src/cli.ts --help -->
 ```text
-Usage: cmdsync [options] [paths...]
+Usage: cmdsync [update] [options] [paths...]
+       cmdsync status [options] [paths...]
+       cmdsync check [options] [paths...]
        cmdsync lint [options] [paths...]
        cmdsync completions <bash|zsh|fish|nu>
        cmdsync hook install
@@ -280,6 +282,11 @@ Arguments:
                            (default: the config's "include" globs)
 
 Commands:
+  update [paths...]        Regenerate every directive, write the files, then run
+                           the config's "postUpdate" commands (the default)
+  status [paths...]        Print a diff of what `update` would change, without
+                           writing (same as --dry-run --diff, but exits 0)
+  check [paths...]         Exit 1 if any region is out of date (same as --check)
   lint [paths...]          Check every directive without running commands or
                            writing, and list where each one is: invalid
                            options, missing end markers or includes, commands
@@ -307,7 +314,14 @@ Options:
                            a directive uses, even if it's already on PATH
       --no-install         Never run "install" commands (default: only for
                            binaries that aren't on PATH)
+      --post-update-cmds   Run the config's "postUpdate" commands even if no
+                           file changed
+      --no-post-update-cmds
+                           Never run "postUpdate" commands (default: run them
+                           after an update that wrote at least one file)
   -q, --quiet              Only print errors
+      --verbose            Also print every file scanned, and every command run
+                           with its exit status and time
   -h, --help               Show this help
   -v, --version            Show version
 
@@ -350,7 +364,9 @@ Typical `package.json` scripts:
 
 ### Seeing what would change
 
-`--diff` doesn't write anything: it prints a unified diff of every file that's out of date, and exits 1 if there are any, so it's `--check` with the details. It's colored in a terminal (unless `NO_COLOR` is set), and plain when piped, so `cmdsync --diff > docs.patch` gives a patch you can `git apply`.
+`cmdsync status` prints a diff of what `cmdsync update` would change, without writing, and exits 0 (unless a directive fails). `cmdsync check` is `--check`, for CI.
+
+`--diff` doesn't write anything either: it prints a unified diff of every file that's out of date, and exits 1 if there are any, so it's `--check` with the details. It's colored in a terminal (unless `NO_COLOR` is set), and plain when piped, so `cmdsync --diff > docs.patch` gives a patch you can `git apply`.
 
 ```diff
 --- a/README.md
@@ -434,6 +450,7 @@ When both exist in the same directory, `cmdsync.json` wins. Relative paths (`inc
 | `cwd` | `string` | `"."` | Working directory for commands |
 | `timeout` | `number` | `60000` | Per-command timeout in ms |
 | `env` | `Record<string, string>` | `{}` | Extra environment variables for every command |
+| `postUpdate` | `string[]` | `[]` | Commands run after an update that wrote files, see [post-update commands](#post-update-commands) |
 
 ### `cmdsync.json`
 
@@ -490,6 +507,20 @@ The allowlist protects against typos and against commands you didn't expect to s
 - `--install` runs the install for every binary a directive uses, even ones already on `PATH`. Use it to pin a version in CI.
 - `--no-install` never installs anything.
 - Binaries are matched the same way as [`commands`](#recognized-commands): the first word of each pipeline/list segment, by basename.
+
+### Post-update commands
+
+`postUpdate` commands run in order after `cmdsync update` (or plain `cmdsync`) writes at least one file: a formatter, a build of the docs site, ... They use the same shell, cwd and env as directives, plus `CMDSYNC_CHANGED_FILES`, the written files (one per line, relative to the config root). The first one that fails stops the rest and makes cmdsync exit 1.
+
+```json
+{
+  "postUpdate": [
+    "echo \"$CMDSYNC_CHANGED_FILES\" | xargs npx prettier --write"
+  ]
+}
+```
+
+`--post-update-cmds` runs them even when nothing changed, and `--no-post-update-cmds` skips them. They never run for `status`, `check`, `--dry-run` or `--diff`, since nothing is written. With [`--staged`](#git-hooks) they run after the files are written and before they're staged, so their changes to those files are part of the commit.
 
 ## Git hooks
 

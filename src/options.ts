@@ -23,7 +23,9 @@ export const OPTIONS: CliOption[] = [
   { long: 'shell', short: 's', value: 'command', description: 'Shell used to run commands (overrides config)' },
   { long: 'command', value: 'command', multiple: true, description: 'Allowed command binary, repeatable (overrides config)' },
   { long: 'install', negatable: true, description: 'Install every binary a directive uses (--no-install: never install)' },
+  { long: 'post-update-cmds', negatable: true, description: 'Run the postUpdate commands even if nothing changed (--no-post-update-cmds: never)' },
   { long: 'quiet', short: 'q', description: 'Only print errors' },
+  { long: 'verbose', description: 'Also print every file scanned and every command run, with timings' },
   { long: 'help', short: 'h', description: 'Show help' },
   { long: 'version', short: 'v', description: 'Show version' },
 ];
@@ -39,6 +41,9 @@ export const SHELLS = ['bash', 'zsh', 'fish', 'nu'] as const;
 export type Shell = typeof SHELLS[number];
 
 export const SUBCOMMANDS: Subcommand[] = [
+  { name: 'update', description: 'Regenerate every directive and write the files (the default)', args: [] },
+  { name: 'status', description: "Show a diff of what update would change, without writing", args: [] },
+  { name: 'check', description: 'Exit 1 if any region is out of date (same as --check)', args: [] },
   { name: 'completions', description: 'Print a shell completion script', args: [...SHELLS] },
   { name: 'hook', description: 'Add cmdsync --staged to the git pre-commit hook', args: ['install'] },
   { name: 'lint', description: 'Check every directive without running commands, and list where each one is', args: [] },
@@ -57,7 +62,9 @@ export const PARSE_OPTIONS = {
   shell: { type: 'string', short: 's' },
   command: { type: 'string', multiple: true },
   install: { type: 'boolean' },
+  'post-update-cmds': { type: 'boolean' },
   quiet: { type: 'boolean', short: 'q', default: false },
+  verbose: { type: 'boolean', default: false },
   help: { type: 'boolean', short: 'h', default: false },
   version: { type: 'boolean', short: 'v', default: false },
 } as const;

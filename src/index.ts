@@ -111,16 +111,29 @@ export function run(
     lint?: boolean;
     onFile?: (result: FileResult) => void;
     onInstall?: (event: InstallEvent) => void;
+    /** Every file that's scanned, before it's processed (including ones without directives) */
+    onScan?: (file: string, syntax: RegionSyntax) => void;
+    /** Every command a directive ran, with how long it took */
+    onCommand?: (command: string, result: CommandResult, ms: number) => void;
   } = {},
 ): FileResult[] {
   const syntaxFor = syntaxResolver(config);
-  const runner = options.lint ? lintRunner(config) : createRunner(config, { install: options.install, onInstall: options.onInstall });
+  const base = options.lint ? lintRunner(config) : createRunner(config, { install: options.install, onInstall: options.onInstall });
+  const runner = options.onCommand
+    ? (command: string) => {
+      const start = performance.now();
+      const result = base(command);
+      options.onCommand!(command, result, performance.now() - start);
+      return result;
+    }
+    : base;
   return collectFiles(config, options.paths)
     .map(file => {
       const syntax = syntaxFor(file);
       if (!syntax) {
         throw new Error(`No comment syntax known for ${displayPath(file, config.root)}: add a "syntax" rule to the config or pass --comment`);
       }
+      options.onScan?.(file, syntax);
       return processFile(file, syntax, { write: !options.lint && (options.write ?? true), run: runner, lint: options.lint });
     })
     .filter(result => result.regions.length > 0 || result.stray.length > 0)

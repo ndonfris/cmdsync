@@ -1,9 +1,25 @@
 # cmdsync documentation
 
-Start with [Directives](directives.md), then read whichever guide you need. Each one ends with links to the previous and next guide.
+Start with [Getting started](getting-started.md), then read whichever guide you need. Each one ends with links to the previous and next guide.
 
 <!-- CMDSYNC start: node scripts/docs-nav.ts --toc -->
-1. **[Directives](directives.md)**: The directive syntax and modes (region, line, codeblock, console, inline), `include=`, tables, mdx, changelogs, any file, and the comment syntax per file type
+1. **[Getting started](getting-started.md)**: Install, create a config (`cmdsync init`, or `cmdsync migrate` from update-codeblocks), add a first directive, run it, shell completions
+   - [1. Install](getting-started.md#1-install)
+   - [2. Create a config](getting-started.md#2-create-a-config)
+   - [3. Add a directive](getting-started.md#3-add-a-directive)
+   - [4. Run it](getting-started.md#4-run-it)
+   - [5. Shell completions](getting-started.md#5-shell-completions)
+   - [Next](getting-started.md#next)
+2. **[Local install](local-install.md)**: cmdsync as a dev dependency of a project: running it, scripts, CI and git hooks, upgrading
+   - [Running it](local-install.md#running-it)
+   - [In CI and git hooks](local-install.md#in-ci-and-git-hooks)
+   - [Upgrading](local-install.md#upgrading)
+3. **[Global install](global-install.md)**: cmdsync on your `PATH` in every repository: the man page, Node version managers, the global config, upgrading and removing
+   - [The man page](global-install.md#the-man-page)
+   - [Node version managers](global-install.md#node-version-managers)
+   - [Using it across repositories](global-install.md#using-it-across-repositories)
+   - [Upgrading and removing](global-install.md#upgrading-and-removing)
+4. **[Directives](directives.md)**: The directive syntax and modes (region, line, codeblock, console, inline), `include=`, tables, mdx, changelogs, any file, and the comment syntax per file type
    - [region](directives.md#region)
    - [line](directives.md#line)
    - [codeblock](directives.md#codeblock)
@@ -15,15 +31,15 @@ Start with [Directives](directives.md), then read whichever guide you need. Each
    - [Changelogs](directives.md#changelogs)
    - [Any other file](directives.md#any-other-file)
    - [Comment syntax](directives.md#comment-syntax)
-2. **[Custom directives](custom-directives.md)**: Your own directives: templates, filters and TypeScript formatters
+5. **[Custom directives](custom-directives.md)**: Your own directives: templates, filters and TypeScript formatters
    - [Templates](custom-directives.md#templates)
    - [Formatters](custom-directives.md#formatters)
-3. **[CLI](cli.md)**: Every command and option, `status`/`--diff`, interactive mode, `lint`, shell completions, the man page
+6. **[CLI](cli.md)**: Every command and option, `status`/`--diff`, interactive mode, `lint`, shell completions, the man page
    - [Seeing what would change](cli.md#seeing-what-would-change)
    - [Choosing which changes to apply](cli.md#choosing-which-changes-to-apply)
    - [Linting directives](cli.md#linting-directives)
    - [Shell completions](cli.md#shell-completions)
-4. **[Configuration](configuration.md)**: `cmdsync.json` / `package.json`, allowed commands, installing binaries, the shell, post-update commands, the global config and multiple repositories
+7. **[Configuration](configuration.md)**: `cmdsync.json` / `package.json`, allowed commands, installing binaries, the shell, post-update commands, the global config and multiple repositories
    - [`cmdsync.json`](configuration.md#cmdsyncjson)
    - [`package.json`](configuration.md#packagejson)
    - [Recognized commands](configuration.md#recognized-commands)
@@ -31,19 +47,19 @@ Start with [Directives](directives.md), then read whichever guide you need. Each
    - [The shell](configuration.md#the-shell)
    - [Post-update commands](configuration.md#post-update-commands)
    - [Multiple repositories](configuration.md#multiple-repositories)
-5. **[Git hooks](git-hooks.md)**: Regenerating on every commit: `cmdsync hook install`, husky, lefthook, pre-commit
+8. **[Git hooks](git-hooks.md)**: Regenerating on every commit: `cmdsync hook install`, husky, lefthook, pre-commit
    - [`cmdsync hook install`](git-hooks.md#cmdsync-hook-install)
    - [Hook managers](git-hooks.md#hook-managers)
-6. **[GitHub Actions](github-actions.md)**: The action, checking or regenerating in CI, and updating other repositories on release
+9. **[GitHub Actions](github-actions.md)**: The action, checking or regenerating in CI, and updating other repositories on release
    - [Using the action](github-actions.md#using-the-action)
    - [Regenerate and commit](github-actions.md#regenerate-and-commit)
    - [Without the action](github-actions.md#without-the-action)
    - [Updating other repositories on release](github-actions.md#updating-other-repositories-on-release)
-7. **[Generating docs from your source code](generating-docs.md)**: A worked example: tables generated from TypeScript source
+10. **[Generating docs from your source code](generating-docs.md)**: A worked example: tables generated from TypeScript source
    - [Using it from other repositories](generating-docs.md#using-it-from-other-repositories)
-8. **[Using it as a library](library.md)**: The API
-9. **[Migrating from `update-codeblocks`](migrating.md)**: `cmdsync migrate`
-10. **[Development](development.md)**: Building from source, tests, releasing
+11. **[Using it as a library](library.md)**: The API
+12. **[Migrating from `update-codeblocks`](migrating.md)**: `cmdsync migrate`
+13. **[Development](development.md)**: Building from source, tests, releasing
    - [Building from source](development.md#building-from-source)
    - [Publishing to npm](development.md#publishing-to-npm)
 <!-- CMDSYNC end -->

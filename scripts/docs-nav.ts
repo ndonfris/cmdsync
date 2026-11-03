@@ -14,6 +14,9 @@ import { basename, join } from 'node:path';
 
 /** The docs, in reading order */
 export const DOCS: { file: string; description: string; }[] = [
+  { file: 'getting-started.md', description: 'Install, create a config (`cmdsync init`, or `cmdsync migrate` from update-codeblocks), add a first directive, run it, shell completions' },
+  { file: 'local-install.md', description: 'cmdsync as a dev dependency of a project: running it, scripts, CI and git hooks, upgrading' },
+  { file: 'global-install.md', description: 'cmdsync on your `PATH` in every repository: the man page, Node version managers, the global config, upgrading and removing' },
   { file: 'directives.md', description: 'The directive syntax and modes (region, line, codeblock, console, inline), `include=`, tables, mdx, changelogs, any file, and the comment syntax per file type' },
   { file: 'custom-directives.md', description: 'Your own directives: templates, filters and TypeScript formatters' },
   { file: 'cli.md', description: 'Every command and option, `status`/`--diff`, interactive mode, `lint`, shell completions, the man page' },

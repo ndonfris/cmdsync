@@ -8,11 +8,13 @@ Keep generated parts of your files (docs, tables, changelogs, version strings, c
 
 Put a comment naming a command next to the content it produces directly in your documentation:
 
+<!-- CMDSYNC ignore start -->
 ````markdown
 <!-- CMDSYNC start: my-cli --version -->
 this line is replaced with the output of `my-cli --version`
 <!-- CMDSYNC end -->
 ````
+<!-- CMDSYNC ignore end -->
 
 Running `cmdsync` executes each command and replaces **only the content the comment points at**. The comments stay where they are, so running it again regenerates the same content.
 
@@ -154,14 +156,6 @@ Running `cmdsync` executes each command and replaces **only the content the comm
 - [`docs/getting-started.md`](docs/getting-started.md) for full setup guide and instructions
 - [`docs/directives.md`](docs/directives.md) for tables, other modes, and more examples
 - [`examples/`](https://github.com/ndonfris/cmdsync/blob/master/examples/) folder for complete examples
-
-<!-- <sub><i>For more examples, visit:</i></sub> -->
-<!---->
-<!-- <ul> -->
-<!-- <sub><li><a href="docs/getting-started.md"><code>docs/getting-started.md</code></a> for full setup guide & instructions </li></sub><br/> -->
-<!-- <sub><li><a href="docs/directives.md"><code>docs/directives.md</code></a> for tables, other modes, and more examples  </li></sub><br /> -->
-<!-- <sub><li><a href="https://github.com/ndonfris/cmdsync/blob/master/examples/"><code>examples/</code></a> folder for complete examples </li></sub><br /> -->
-<!-- </ul> -->
 
 <!-- CMDSYNC ignore end -->
 

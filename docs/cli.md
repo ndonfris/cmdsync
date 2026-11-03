@@ -236,6 +236,17 @@ cmdsync completions nu | save -f ($nu.default-config-dir | path join completions
 
 A path literally named `completions` must be written as `./completions`.
 
+## Man page
+
+The same reference, as a man page: [`man/cmdsync.1`](../man/cmdsync.1). It's generated from the CLI's option and subcommand tables (`yarn build:man`, part of every build), so it lists exactly the options this version has.
+
+```fish
+man cmdsync                       # after a global npm install
+man ./man/cmdsync.1               # from a checkout, without installing (man -l on some systems)
+```
+
+If `man cmdsync` finds nothing after `npm install -g cmdsync`, see [the man page](global-install.md#the-man-page) in the global install guide.
+
 <!-- CMDSYNC start: node scripts/docs-nav.ts --footer docs/cli.md -->
 ---
 

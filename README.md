@@ -1,5 +1,7 @@
 # cmdsync
 
+[![npm](https://img.shields.io/npm/v/cmdsync?logo=npm&color=cb3837)](https://www.npmjs.com/package/cmdsync) [![downloads](https://img.shields.io/npm/dm/cmdsync?color=cb3837)](https://www.npmjs.com/package/cmdsync) <!-- CMDSYNC start: node -p "'[![node](https://img.shields.io/badge/node-' + encodeURIComponent(require('./package.json').engines.node) + '-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org)'" -->[![node](https://img.shields.io/badge/node-%3E%3D22.18.0-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org)<!-- CMDSYNC end --> [![license](https://img.shields.io/badge/license-MIT-blue)](./LICENSE.md) [![dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](./package.json) [![types](https://img.shields.io/badge/types-included-3178c6?logo=typescript&logoColor=white)](./src/index.ts)
+
 Keep generated parts of your files (docs, tables, changelogs, version strings, config snippets) in sync with the output of real commands.
 
 Put a comment naming a command next to the content it produces:

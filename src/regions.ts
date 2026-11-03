@@ -10,6 +10,9 @@
  *              `codeblock lang=fish` also sets the fence's language, creating the block if missing
  *   inline     `<!-- MARKER start: cmd -->text<!-- MARKER end -->` on one line
  *
+ * `include=path#L10-L20` in place of `: cmd` takes the content from a file
+ * (relative to the file with the directive) instead of a command.
+ *
  * Without a mode, a markdown directive followed by a fenced code block is a
  * codeblock, one with its end marker on the same line is inline, and anything
  * else is a region.
@@ -22,13 +25,25 @@ export type Mode = typeof MODES[number];
 
 const isMode = (value: string): value is Mode => (MODES as readonly string[]).includes(value);
 
+/** `include=docs/a.ts#L10-L20`: 1-based, inclusive line range */
+export interface Include {
+  spec: string;
+  path: string;
+  from?: number;
+  to?: number;
+}
+
 export interface Directive {
   /** 0-based line index of the start comment */
   line: number;
+  /** Empty for `include=` directives */
   command: string;
   /** `MARKER mode start key=value ...: command` */
-  options: { mode?: Mode; start?: true; format?: Format; lang?: string; };
+  options: { mode?: Mode; start?: true; format?: Format; lang?: string; include?: Include; };
 }
+
+/** What a directive's content comes from: its command, or `include=...` */
+export const directiveSource = (d: Directive) => d.command || (d.options.include ? `include=${d.options.include.spec}` : '');
 
 export interface CommandResult {
   output: string;
@@ -37,8 +52,12 @@ export interface CommandResult {
   error?: string;
 }
 
+/** How a directive was applied, after inferring its mode */
+export type Applied = Mode | 'inline';
+
 export type RegionResult =
-  | { directive: Directive; kind: 'updated'; changed: boolean; }
+  /** `end`: 0-based index of the region's last line (end marker, closing fence, or the replaced line) */
+  | { directive: Directive; kind: 'updated'; changed: boolean; as: Applied; end: number; }
   | { directive: Directive; kind: 'failed'; result: CommandResult; }
   | { directive: Directive; kind: 'invalid'; reason: string; };
 
@@ -49,9 +68,17 @@ const closeOrEol = (syntax: RegionSyntax) => syntax.close ? escapeRegExp(syntax.
 /** Marker text with any run of spaces matching any whitespace (`CMDSYNC end`) */
 const markerPattern = (marker: string) => marker.trim().split(/\s+/).map(escapeRegExp).join('\\s+');
 
-/** Only words and `key=value` between the marker and the colon, so `<!-- MARKER end -->` is never a start */
+/**
+ * Only words and `key=value` between the marker and the optional `: command`.
+ * Without a command it's only a directive when it has `include=` (see `lineDirectives`),
+ * so `<!-- MARKER end -->` is never a start.
+ */
 export const startPattern = (syntax: RegionSyntax) =>
-  new RegExp(`${escapeRegExp(syntax.open)}\\s*${markerPattern(syntax.marker)}((?:\\s+[\\w.=+#-]+)*)\\s*:\\s*(.+?)\\s*${closeOrEol(syntax)}`, 'g');
+  new RegExp(`${escapeRegExp(syntax.open)}\\s*${markerPattern(syntax.marker)}((?:\\s+[\\w.=+#/@~-]+)*)\\s*(?::\\s*(.+?))?\\s*${closeOrEol(syntax)}`, 'g');
+
+/** Where the marker appears as a comment at all: directives, end markers, and typos of either */
+const markerMention = (syntax: RegionSyntax) =>
+  new RegExp(`${escapeRegExp(syntax.open)}\\s*${markerPattern(syntax.marker)}(?![\\w-])`, 'g');
 
 export const endPattern = (syntax: RegionSyntax) =>
   new RegExp(`${escapeRegExp(syntax.open)}\\s*${markerPattern(syntax.endMarker)}\\s*${closeOrEol(syntax)}`);
@@ -77,6 +104,17 @@ const closingFence = (lines: string[], open: number, fence: string) => {
 /** [start, end) ranges of inline code spans, where directives are only examples */
 const codeSpans = (line: string) =>
   [...line.matchAll(/(?<!`)(`+)(?!`).*?(?<!`)\1(?!`)/g)].map(m => [m.index, m.index + m[0].length] as const);
+
+/** `docs/a.ts#L10-L20` → `{ path: 'docs/a.ts', from: 10, to: 20 }` (also `#L10`, `#L10-20`, `#L10-`) */
+function parseInclude(spec: string): Include | string {
+  const match = spec.match(/^(.+?)(?:#L(\d+)(?:(-)L?(\d*))?)?$/);
+  if (!match) return `invalid include "${spec}"`;
+  const [, path, from, dash, to] = match;
+  if (from === undefined) return { spec, path: path! };
+  const range: Include = { spec, path: path!, from: Number(from), to: dash ? (to ? Number(to) : undefined) : Number(from) };
+  if (range.from! < 1 || (range.to !== undefined && range.to < range.from!)) return `invalid line range in include "${spec}"`;
+  return range;
+}
 
 /** `region start format=md-table` (or `start format=md-table`) → `{ mode: 'region', start: true, format: 'md-table' }`, or an error message */
 function parseOptions(raw: string | undefined): Directive['options'] | string {
@@ -105,6 +143,10 @@ function parseOptions(raw: string | undefined): Directive['options'] | string {
       if (options.mode !== 'codeblock') return '`lang` only applies to `codeblock` directives';
       if (!/^[\w.+#-]+$/.test(value)) return `invalid lang "${value}"`;
       options.lang = value;
+    } else if (key === 'include') {
+      const include = parseInclude(word.slice('include='.length));
+      if (typeof include === 'string') return include;
+      options.include = include;
     } else {
       return `unknown option "${word}"`;
     }
@@ -117,7 +159,24 @@ export function lineDirectives(text: string, line: number, syntax: RegionSyntax)
   const spans = syntax.fences ? codeSpans(text) : [];
   return [...text.matchAll(startPattern(syntax))]
     .filter(m => !spans.some(([start, end]) => m.index >= start && m.index < end))
-    .map(m => ({ match: m, line, command: m[2]!, options: parseOptions(m[1]) }));
+    .filter(m => m[2] !== undefined || /(^|\s)include=/.test(m[1] ?? ''))
+    .map(m => {
+      const options = parseOptions(m[1]);
+      const command = m[2] ?? '';
+      const conflict = typeof options !== 'string' && !!options.include === !!command;
+      return {
+        match: m,
+        line,
+        command,
+        options: conflict ? '`include=` replaces the command, so use one or the other' : options,
+      };
+    });
+}
+
+/** Mentions of the marker on a line (start or end comments, or typos of either), outside of inline code in markdown */
+function markerMentions(text: string, syntax: RegionSyntax): number {
+  const spans = syntax.fences ? codeSpans(text) : [];
+  return [...text.matchAll(markerMention(syntax))].filter(m => !spans.some(([start, stop]) => m.index >= start && m.index < stop)).length;
 }
 
 /** Every directive in `content`, skipping fenced code blocks in markdown */
@@ -140,6 +199,34 @@ export function findDirectives(content: string, syntax: RegionSyntax): Directive
 
 const indent = (text: string, prefix: string) => prefix ? text.replace(/^(?=.)/gm, prefix) : text;
 
+/** Remove the indentation every non-blank line shares */
+const dedent = (text: string) => {
+  const widths = text.split('\n').filter(l => l.trim()).map(l => l.match(/^[ \t]*/)![0].length);
+  const width = Math.min(...widths);
+  return widths.length && width ? text.replace(new RegExp(`^[ \\t]{0,${width}}`, 'gm'), '') : text;
+};
+
+/** The lines of `content` an include asks for, dedented when it's a range */
+export function includeLines(content: string, include: Include): string {
+  if (include.from === undefined) return content;
+  const lines = content.replace(/\n$/, '').split('\n');
+  if (include.from > lines.length || (include.to ?? 0) > lines.length) {
+    throw new Error(`${include.spec} is past the end of ${include.path} (${lines.length} lines)`);
+  }
+  return dedent(lines.slice(include.from - 1, include.to ?? lines.length).join('\n'));
+}
+
+export interface UpdateOptions {
+  /** Contents of an `include=` path (resolved by the caller, usually relative to the file) */
+  read?: (path: string) => CommandResult;
+  /**
+   * Validate without generating: `run` is a check that returns an error or
+   * succeeds, includes are read and range-checked, output isn't formatted, and
+   * every region is reported as unchanged.
+   */
+  lint?: boolean;
+}
+
 /**
  * Rewrite every directive's region using `run`. Failed commands and invalid
  * directives (no end marker, unknown option, ...) leave their region untouched.
@@ -148,11 +235,16 @@ export function updateRegions(
   content: string,
   syntax: RegionSyntax,
   run: (command: string) => CommandResult,
-): { content: string; results: RegionResult[]; } {
+  { read, lint = false }: UpdateOptions = {},
+): { content: string; results: RegionResult[]; stray: number[]; } {
   const lines = content.split('\n');
   const output: string[] = [];
   const results: RegionResult[] = [];
+  /** 0-based lines that mention the marker without being a directive or an end marker */
+  const stray: number[] = [];
   const end = endPattern(syntax);
+  const updated = (directive: Directive, changed: boolean, as: Applied, last: number) =>
+    results.push({ directive, kind: 'updated', changed: changed && !lint, as, end: last });
 
   /** Command output for a directive, formatted; undefined (and a result recorded) on failure */
   const generate = (directive: Directive, options: Directive['options'] | string): string | undefined => {
@@ -160,13 +252,18 @@ export function updateRegions(
       results.push({ directive, kind: 'invalid', reason: options });
       return undefined;
     }
-    const result = run(directive.command);
+    const { include } = options;
+    const result = include
+      ? read?.(include.path) ?? { output: '', status: 1, error: '`include=` is not supported here' }
+      : run(directive.command);
     if (result.status !== 0 || result.error) {
       results.push({ directive, kind: 'failed', result });
       return undefined;
     }
     try {
-      return options.format ? formatOutput(result.output, options.format) : result.output;
+      const text = include ? includeLines(result.output, include) : result.output;
+      if (lint) return '';
+      return options.format ? formatOutput(text, options.format) : text;
     } catch (err) {
       results.push({ directive, kind: 'failed', result: { ...result, error: (err as Error).message } });
       return undefined;
@@ -178,6 +275,8 @@ export function updateRegions(
     let rewritten = '';
     let rest = text;
     let consumed = 0;
+    /** Start and end comments accounted for (a pair per inline region) */
+    let accounted = 0;
     for (const { match, command, options } of lineDirectives(text, line, syntax)) {
       // a start comment inside the previous inline region is old content, not a directive
       if (match.index < consumed) continue;
@@ -185,19 +284,44 @@ export function updateRegions(
       const afterStart = match.index + match[0].length - consumed;
       const mode = directive.options.mode;
       const close = mode === 'line' || mode === 'codeblock' ? null : end.exec(rest.slice(afterStart));
-      if (!close) return { text: rewritten + rest, open: { directive, options } };
+      if (!close) return { text: rewritten + rest, open: { directive, options }, accounted: accounted + 1 };
       const previous = rest.slice(afterStart, afterStart + close.index);
-      const next = generate(directive, options)?.trim();
-      if (next !== undefined) results.push({ directive, kind: 'updated', changed: previous !== next });
+      const generated = generate(directive, options)?.trim();
+      const next = lint ? undefined : generated;
+      if (generated !== undefined) updated(directive, previous !== generated, 'inline', line);
       const length = afterStart + close.index + close[0].length;
       rewritten += rest.slice(0, afterStart) + (next ?? previous) + close[0];
       rest = rest.slice(length);
       consumed += length;
+      accounted += 2 + markerMentions(previous, syntax);
     }
-    return { text: rewritten + rest, open: undefined };
+    return { text: rewritten + rest, open: undefined, accounted };
+  };
+
+  /** Index of the end marker closing a region whose body starts at `from`, or -1 when another directive (or the end of the file) comes first */
+  const regionEnd = (from: number) => {
+    for (let stop = from; stop < lines.length; stop++) {
+      const nested = syntax.fences && openingFence(lines[stop]!);
+      if (nested) {
+        const close = closingFence(lines, stop, nested[2]!);
+        if (close === -1) return -1;
+        stop = close;
+      } else if (lineDirectives(lines[stop]!, stop, syntax).length > 0) {
+        return -1;
+      } else if (end.test(lines[stop]!)) {
+        return stop;
+      }
+    }
+    return -1;
   };
 
   let i = 0;
+  /** Keep a region that couldn't be regenerated as it is, through its end marker */
+  const skipThrough = (stop: number) => {
+    output.push(...lines.slice(i, stop + 1));
+    i = stop + 1;
+  };
+
   while (i < lines.length) {
     const fence = syntax.fences && openingFence(lines[i]!);
     if (fence) {
@@ -208,7 +332,8 @@ export function updateRegions(
       continue;
     }
 
-    const { text, open } = inline(lines[i]!, i);
+    const { text, open, accounted } = inline(lines[i]!, i);
+    if (markerMentions(lines[i]!, syntax) > accounted) stray.push(i);
     output.push(text);
     i++;
     if (!open) continue;
@@ -218,6 +343,9 @@ export function updateRegions(
     // a bad mode or option is the real problem, not whatever the fallback mode would complain about
     if (typeof options === 'string') {
       invalid(options);
+      // an end marker that follows still belongs to this directive, so it isn't stray
+      const stop = regionEnd(i);
+      if (stop !== -1) skipThrough(stop);
       continue;
     }
 
@@ -244,7 +372,7 @@ export function updateRegions(
       }
       const replacement = body === '' ? '' : lines[directive.line]!.match(/^\s*/)![0] + body.trimStart();
       output.push(replacement);
-      results.push({ directive, kind: 'updated', changed: target !== replacement });
+      updated(directive, target !== replacement, 'line', i);
       i++;
       continue;
     }
@@ -267,7 +395,7 @@ export function updateRegions(
       output.push(`${indentation}${fence}${directive.options.lang}`);
       if (body !== '') output.push(indent(body, indentation));
       output.push(`${indentation}${fence}`);
-      results.push({ directive, kind: 'updated', changed: true });
+      updated(directive, true, 'codeblock', directive.line);
       continue;
     }
     if (mode === 'codeblock' && !codeFence) {
@@ -292,27 +420,14 @@ export function updateRegions(
       output.push(...lines.slice(i, next), opening);
       if (replacement !== '') output.push(replacement);
       output.push(lines[close]!);
-      results.push({ directive, kind: 'updated', changed: previous !== replacement || opening !== lines[next] });
+      updated(directive, previous !== replacement || opening !== lines[next], 'codeblock', close);
       i = close + 1;
       continue;
     }
 
     // region: everything up to the end marker, which must come before any other directive
-    let stop = i;
-    let found = false;
-    for (; stop < lines.length; stop++) {
-      const nested = syntax.fences && openingFence(lines[stop]!);
-      if (nested) {
-        const close = closingFence(lines, stop, nested[2]!);
-        stop = close === -1 ? lines.length : close;
-      } else if (lineDirectives(lines[stop]!, stop, syntax).length > 0) {
-        break;
-      } else if (end.test(lines[stop]!)) {
-        found = true;
-        break;
-      }
-    }
-    if (!found) {
+    const stop = regionEnd(i);
+    if (stop === -1) {
       const expected = `${syntax.open} ${syntax.endMarker}${syntax.close ? ` ${syntax.close}` : ''}`;
       results.push({
         directive,
@@ -324,14 +439,17 @@ export function updateRegions(
       continue;
     }
     const body = generate(directive, options)?.replace(/\s+$/, '');
-    if (body === undefined) continue;
+    if (body === undefined) {
+      skipThrough(stop);
+      continue;
+    }
     const previous = lines.slice(i, stop).join('\n');
     const replacement = indent(body, lines[directive.line]!.match(/^\s*/)![0]);
     if (replacement !== '') output.push(replacement);
     output.push(lines[stop]!);
-    results.push({ directive, kind: 'updated', changed: previous !== replacement });
+    updated(directive, previous !== replacement, 'region', stop);
     i = stop + 1;
   }
 
-  return { content: output.join('\n'), results };
+  return { content: output.join('\n'), results, stray };
 }

@@ -22,6 +22,7 @@ describe('completionScript', () => {
       for (const o of OPTIONS) assert.ok(script.includes(o.long), `${shell} is missing --${o.long}`);
       assert.ok(script.includes('no-install'), `${shell} is missing --no-install`);
       assert.ok(script.includes('completions'));
+      assert.ok(script.includes('lint'));
     });
   }
 });

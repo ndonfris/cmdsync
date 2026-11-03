@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { findDirectives, updateRegions } from '../src/regions.js';
+import { findDirectives, includeLines, updateRegions } from '../src/regions.js';
 import type { RegionSyntax } from '../src/syntax.js';
 
 const ok = (output: string) => () => ({ output, status: 0 });
@@ -68,7 +68,7 @@ describe('updateRegions: codeblock', () => {
     const input = md('<!-- M: x -->', '```', 'same', '```');
     const { content, results } = updateRegions(input, markdown, ok('same'));
     assert.equal(content, input);
-    assert.deepEqual(results[0], { directive: { line: 0, command: 'x', options: {} }, kind: 'updated', changed: false });
+    assert.deepEqual(results[0], { directive: { line: 0, command: 'x', options: {} }, kind: 'updated', changed: false, as: 'codeblock', end: 3 });
   });
 });
 
@@ -247,5 +247,71 @@ describe('updateRegions: start/end markers', () => {
   it('rejects `start` on modes without an end marker', () => {
     const { results } = updateRegions(md('# M line start: x', 'old'), hash, ok('new'));
     assert.match(results[0]?.kind === 'invalid' ? results[0].reason : '', /`line` directives have no end marker/);
+  });
+});
+
+describe('updateRegions: include=', () => {
+  const files: Record<string, string> = { 'a.ts': 'function f() {\n  if (x) {\n    return 1;\n  }\n}\n' };
+  const read = (path: string) => path in files ? { output: files[path]!, status: 0 } : { output: '', status: 1, error: `include ${path}: no such file` };
+  const never = () => assert.fail('include directives never run a command');
+
+  it('replaces a region with a file, or a dedented line range of one, without a command', () => {
+    const input = md('<!-- M start include=a.ts#L2-L4 -->', 'old', '<!-- M end -->', 'x <!-- M start include=a.ts#L3 -->old<!-- M end -->');
+    const { content, results } = updateRegions(input, markdown, never, { read });
+    assert.equal(content, md('<!-- M start include=a.ts#L2-L4 -->', 'if (x) {', '  return 1;', '}', '<!-- M end -->', 'x <!-- M start include=a.ts#L3 -->return 1;<!-- M end -->'));
+    assert.deepEqual(results.map(r => r.kind === 'updated' && [r.as, r.end]), [['region', 2], ['inline', 3]]);
+  });
+
+  it('works with codeblock lang= and open-ended ranges', () => {
+    const input = md('<!-- M codeblock lang=ts include=a.ts#L4- -->');
+    assert.equal(updateRegions(input, markdown, never, { read }).content, md(input, '```ts', '  }', '}', '```'));
+  });
+
+  it('reports missing files, ranges past the end, and conflicts with a command', () => {
+    const input = md(
+      '<!-- M start include=nope.ts -->', '<!-- M end -->',
+      '<!-- M start include=a.ts#L9 -->', '<!-- M end -->',
+      '<!-- M start include=a.ts#L3-L2 -->', '<!-- M end -->',
+      '<!-- M start include=a.ts: echo -->', '<!-- M end -->',
+    );
+    const { results, stray } = updateRegions(input, markdown, never, { read });
+    assert.deepEqual(results.map(r => r.kind === 'failed' ? r.result.error : r.kind === 'invalid' ? r.reason : r.kind), [
+      'include nope.ts: no such file',
+      'a.ts#L9 is past the end of a.ts (5 lines)',
+      'invalid line range in include "a.ts#L3-L2"',
+      '`include=` replaces the command, so use one or the other',
+    ]);
+    assert.deepEqual(stray, []);
+  });
+
+  it('includeLines keeps a whole file as is', () => {
+    assert.equal(includeLines('  a\n', { spec: 'f', path: 'f' }), '  a\n');
+  });
+});
+
+describe('updateRegions: lint', () => {
+  it('validates without changing anything or formatting output', () => {
+    const input = md('<!-- M start format=md-table: x -->', 'old', '<!-- M end -->', '<!-- M line: y -->', 'old');
+    const { content, results } = updateRegions(input, markdown, ok('not json'), { lint: true });
+    assert.equal(content.split('\n')[0], input.split('\n')[0]);
+    assert.deepEqual(results.map(r => r.kind === 'updated' && [r.as, r.changed]), [['region', false], ['line', false]]);
+  });
+
+  it('finds stray markers: orphan end markers and typos, but not ones in inline code', () => {
+    const input = md(
+      '<!-- M start: a -->', 'x', '<!-- M end -->',
+      '<!-- M end -->',
+      '<!-- M strat a -->',
+      '`<!-- M end -->` is an example',
+      'v<!-- M start: b -->1<!-- M end --> <!-- M end -->',
+      '<!-- MORE -->',
+    );
+    assert.deepEqual(updateRegions(input, markdown, ok(''), { lint: true }).stray, [3, 4, 6]);
+  });
+
+  it('an invalid directive keeps its end marker, so it is not reported as stray', () => {
+    const { results, stray } = updateRegions(md('<!-- M strat: a -->', 'x', '<!-- M end -->'), markdown, ok(''), { lint: true });
+    assert.equal(results[0]?.kind, 'invalid');
+    assert.deepEqual(stray, []);
   });
 });

@@ -31,7 +31,7 @@
     "marker": {
       "$ref": "#/definitions/marker",
       "default": "CMDSYNC",
-      "description": "Starts a directive: <!-- MARKER region start: command -->"
+      "description": "Starts a directive: <!-- MARKER start: command -->"
     },
     "endMarker": {
       "$ref": "#/definitions/endMarker",

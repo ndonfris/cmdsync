@@ -21,7 +21,7 @@ export interface SyntaxRule {
 
 /** Config as written by the user (every field is optional) */
 export interface UserConfig {
-  /** Starts a directive: `<!-- MARKER region start: command -->` */
+  /** Starts a directive: `<!-- MARKER start: command -->` */
   marker?: string;
   /** End of a region: `<!-- END_MARKER -->` (default: marker + ` end`) */
   endMarker?: string;

@@ -3,11 +3,11 @@
  * directives (in any comment syntax) and replace what they point at with the
  * command's output.
  *
- *   region     `<!-- MARKER region start: cmd -->` ... lines ... `<!-- MARKER end -->`
+ *   region     `<!-- MARKER start: cmd -->` ... lines ... `<!-- MARKER end -->`
  *              (`MARKER start:` is short for `MARKER region start:`)
  *   line       `<!-- MARKER line: cmd -->` then the single line it replaces
  *   codeblock  `<!-- MARKER codeblock: cmd -->` then a fenced code block (markdown only)
- *   inline     `<!-- MARKER region start: cmd -->text<!-- MARKER end -->` on one line
+ *   inline     `<!-- MARKER start: cmd -->text<!-- MARKER end -->` on one line
  *
  * Without a mode, a markdown directive followed by a fenced code block is a
  * codeblock, one with its end marker on the same line is inline, and anything

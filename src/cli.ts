@@ -15,7 +15,7 @@ Usage: cmdsync [options] [paths...]
 Replace comment-delimited regions of any file with the output of the
 command named in the start comment:
 
-  <!-- CMDSYNC region start: my-cli --version -->
+  <!-- CMDSYNC start: my-cli --version -->
   this line is replaced with the output of \`my-cli --version\`
   <!-- CMDSYNC end -->
 
@@ -53,7 +53,7 @@ Options:
 
 Directives: <!-- CMDSYNC [mode] [start] [format=...]: cmd -->
   region     replace every line up to <!-- CMDSYNC end -->
-             (\`region start\`, or just \`start\`; on one line: inline)
+             (\`start\` is short for \`region start\`; on one line: inline)
   line       replace the next line (output must be one line)
   codeblock  replace the body of the next fenced code block (markdown)
   (none)     codeblock if a fence follows in markdown, inline if the end

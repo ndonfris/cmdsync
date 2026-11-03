@@ -4,10 +4,12 @@
  *
  *   node scripts/docs-nav.ts --footer docs/cli.md   the ← previous · contents · next → footer of a doc
  *   node scripts/docs-nav.ts --toc                  docs/README.md's table of contents (each doc and its sections)
- *   node scripts/docs-nav.ts --table                the root README's table of the docs
+ *   node scripts/docs-nav.ts --toc-refs             the same for the root README, with reference links (`[Getting started][docs/getting-started.md]`)
+ *   node scripts/docs-nav.ts --refs                 the definitions of those references, as absolute GitHub URLs, for the end of the README
+ *                                                   (it's the README npm publishes, where relative links don't reach the repository)
  *
  * Adding, removing or reordering a doc is a change to DOCS; `yarn docs` updates every
- * footer and both tables, and `yarn docs:check` fails while one is out of date.
+ * footer and both tables of contents, and `yarn docs:check` fails while one is out of date.
  */
 import { readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
@@ -29,7 +31,12 @@ export const DOCS: { file: string; description: string; }[] = [
   { file: 'development.md', description: 'Building from source, tests, releasing' },
 ];
 
-const DIR = join(import.meta.dirname, '..', 'docs');
+const ROOT = join(import.meta.dirname, '..');
+const DIR = join(ROOT, 'docs');
+
+/** `git+https://github.com/ndonfris/cmdsync.git` → `https://github.com/ndonfris/cmdsync/blob/master` */
+const { repository } = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf-8')) as { repository: { url: string; }; };
+const BLOB = `${repository.url.replace(/^git\+/, '').replace(/\.git$/, '')}/blob/master`;
 
 /** A doc's lines outside fenced code blocks */
 function prose(file: string): string[] {
@@ -70,35 +77,53 @@ function footer(path: string): string {
   ].join('\n');
 }
 
-function toc(): string {
-  return DOCS.map(({ file, description }, i) => {
-    // a guide's "Next" section only points at other guides, which the contents already list
-    const sections = prose(file).filter(l => l.startsWith('## ')).map(l => l.slice(3)).filter(s => s !== 'Next');
+/** Each doc in order, with its sections (a guide's "Next" section only points at other guides, so it's left out) */
+const outline = () => DOCS.map(({ file, description }) => ({
+  file,
+  description,
+  sections: prose(file).filter(l => l.startsWith('## ')).map(l => l.slice(3)).filter(s => s !== 'Next'),
+}));
+
+/** The table of contents, with `link(text, file, section?)` writing each link */
+function contents(link: (text: string, file: string, section?: string) => string): string {
+  return outline().map(({ file, description, sections }, i) => {
     // a nested list must be indented as far as the item's text: 3 spaces under `9. `, 4 under `10. `
     const marker = `${i + 1}. `;
     const indent = ' '.repeat(marker.length);
     return [
-      `${marker}**[${title(file)}](${file})**: ${description}`,
-      ...sections.map(s => `${indent}- [${s}](${file}#${anchor(s)})`),
+      `${marker}**${link(title(file), file)}**: ${description}`,
+      // Omit step numbers from link text, but retain them in heading anchors.
+      ...sections.map(s => `${indent}- ${link(s.replace(/^\d+\.\s+/, ''), file, s)}`),
     ].join('\n');
   }).join('\n');
 }
 
-function table(): string {
-  return [
-    '| Guide | What\'s in it |',
-    '| --- | --- |',
-    ...DOCS.map(({ file, description }) => `| [${title(file)}](docs/${file}) | ${description} |`),
-  ].join('\n');
-}
+/** A reference label: `docs/cli.md`, `docs/cli.md#shell-completions` */
+const label = (file: string, section?: string) => `docs/${file}${section ? `#${anchor(section)}` : ''}`;
+
+/** docs/README.md's contents: links relative to docs/ */
+const toc = () => contents((text, file, section) => `[${text}](${file}${section ? `#${anchor(section)}` : ''})`);
+
+/** The root README's contents: reference links, defined by `refs()` */
+const tocRefs = () => contents((text, file, section) => `[${text}][${label(file, section)}]`);
+
+/** The definitions `tocRefs()` uses, as absolute URLs to the repository */
+const refs = () => outline()
+  .flatMap(({ file, sections }) => [undefined, ...sections].map(section => {
+    const target = label(file, section);
+    return `[${target}]: ${BLOB}/${target}`;
+  }))
+  .join('\n');
+
 
 if (process.argv[1] === import.meta.filename) {
   const [flag, path] = process.argv.slice(2);
   if (flag === '--footer' && path) console.log(footer(path));
   else if (flag === '--toc') console.log(toc());
-  else if (flag === '--table') console.log(table());
+  else if (flag === '--toc-refs') console.log(tocRefs());
+  else if (flag === '--refs') console.log(refs());
   else {
-    console.error('usage: node scripts/docs-nav.ts --footer docs/<file>.md | --toc | --table');
+    console.error('usage: node scripts/docs-nav.ts --footer docs/<file>.md | --toc | --toc-refs | --refs');
     process.exitCode = 2;
   }
 }

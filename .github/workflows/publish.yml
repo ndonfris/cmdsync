@@ -32,6 +32,9 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     environment: npm
+    env:
+      # directives' commands run in sh in CI, whatever shell `"shell": "auto"` would find
+      CMDSYNC_SHELL: sh
     steps:
       - uses: actions/checkout@v4
 

@@ -1,14 +1,19 @@
 import { globSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { type ResolvedConfig, defaultEndMarker } from './config.js';
+import { type LoadedFormatter, customHooks } from './custom.js';
 import { type CommandResult, type RegionResult, updateRegions } from './regions.js';
 import { type InstallEvent, type InstallMode, createRunner, rejectUnrecognized } from './run.js';
 import { type CommentSyntax, type RegionSyntax, builtinSyntax } from './syntax.js';
 
 export * from './config.js';
+export * from './custom.js';
 export * from './diff.js';
 export * from './format.js';
 export * from './git.js';
+export * from './global.js';
+export * from './init.js';
+export * from './migrate.js';
 export * from './regions.js';
 export * from './run.js';
 export * from './syntax.js';
@@ -51,11 +56,12 @@ const fromComment = ([open, close = '']: string[], fences: boolean): CommentSynt
  * matching `syntax` rule, then the built-in table by file extension.
  */
 export function syntaxResolver(config: ResolvedConfig): (file: string) => RegionSyntax | undefined {
-  const markers = { marker: config.marker, endMarker: config.endMarker };
+  const markers = { marker: config.marker, endMarker: config.endMarker, directives: config.directives };
   const rules = config.syntax.map(rule => ({
     files: new Set(glob(rule.include, config.root)),
     syntax: {
       ...fromComment(rule.comment, rule.fences ?? false),
+      directives: config.directives,
       marker: rule.marker ?? config.marker,
       endMarker: rule.endMarker ?? (rule.marker ? defaultEndMarker(rule.marker) : config.endMarker),
     },
@@ -85,12 +91,20 @@ export function includeReader(file: string): (path: string) => CommandResult {
 export function processFile(
   file: string,
   syntax: RegionSyntax,
-  options: { write: boolean; run: (command: string) => CommandResult; lint?: boolean; },
+  options: {
+    write: boolean;
+    run: (command: string) => CommandResult;
+    lint?: boolean;
+    /** For custom directives: the config, and their loaded formatters (see `loadFormatters`) */
+    config?: ResolvedConfig;
+    formatters?: Map<string, LoadedFormatter>;
+  },
 ): FileResult {
   const original = readFileSync(file, 'utf-8');
   const unchanged = { file, changed: false, written: false, original, content: original };
   if (!original.includes(syntax.marker.trim().split(/\s+/)[0]!)) return { ...unchanged, regions: [], stray: [] };
-  const { content, results, stray } = updateRegions(original, syntax, options.run, { read: includeReader(file), lint: options.lint });
+  const custom = options.config ? customHooks(options.config, file, options.formatters, options.lint) : undefined;
+  const { content, results, stray } = updateRegions(original, syntax, options.run, { read: includeReader(file), lint: options.lint, custom });
   if (options.lint) return { ...unchanged, regions: results, stray };
   const changed = content !== original;
   if (changed && options.write) writeFileSync(file, content, 'utf-8');
@@ -109,6 +123,8 @@ export function run(
     install?: InstallMode;
     /** Validate every directive without running commands or writing (see `UpdateOptions.lint`) */
     lint?: boolean;
+    /** Custom directives' formatter modules, from `loadFormatters(config)` */
+    formatters?: Map<string, LoadedFormatter>;
     onFile?: (result: FileResult) => void;
     onInstall?: (event: InstallEvent) => void;
     /** Every file that's scanned, before it's processed (including ones without directives) */
@@ -134,7 +150,13 @@ export function run(
         throw new Error(`No comment syntax known for ${displayPath(file, config.root)}: add a "syntax" rule to the config or pass --comment`);
       }
       options.onScan?.(file, syntax);
-      return processFile(file, syntax, { write: !options.lint && (options.write ?? true), run: runner, lint: options.lint });
+      return processFile(file, syntax, {
+        write: !options.lint && (options.write ?? true),
+        run: runner,
+        lint: options.lint,
+        config,
+        formatters: options.formatters,
+      });
     })
     .filter(result => result.regions.length > 0 || result.stray.length > 0)
     .map(result => (options.onFile?.(result), result));

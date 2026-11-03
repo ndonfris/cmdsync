@@ -68,7 +68,7 @@ describe('updateRegions: codeblock', () => {
     const input = md('<!-- M: x -->', '```', 'same', '```');
     const { content, results } = updateRegions(input, markdown, ok('same'));
     assert.equal(content, input);
-    assert.deepEqual(results[0], { directive: { line: 0, command: 'x', options: {} }, kind: 'updated', changed: false, as: 'codeblock', end: 3 });
+    assert.deepEqual(results[0], { directive: { line: 0, command: 'x', options: {} }, kind: 'updated', changed: false, as: 'codeblock', end: 3, command: 'x' });
   });
 });
 

@@ -20,10 +20,11 @@
  * codeblock, one with its end marker on the same line is inline, and anything
  * else is a region.
  */
+import { BASE_MODES, type CustomDirective } from './config.js';
 import { type Format, formatOutput, isFormat } from './format.js';
 import type { RegionSyntax } from './syntax.js';
 
-export const MODES = ['region', 'line', 'codeblock', 'console', 'console-pretty'] as const;
+export const MODES = BASE_MODES;
 export type Mode = typeof MODES[number];
 
 /** Modes that replace what follows the directive, so they have no end marker */
@@ -48,7 +49,17 @@ export interface Directive {
   /** Empty for `include=` directives */
   command: string;
   /** `MARKER mode start key=value ...: command` */
-  options: { mode?: Mode; start?: true; format?: Format; lang?: string; include?: Include; };
+  options: {
+    mode?: Mode;
+    start?: true;
+    format?: Format;
+    lang?: string;
+    include?: Include;
+    /** Name of the config's custom directive this is */
+    custom?: string;
+    /** Other `key=value` words of a custom directive, for its formatter and template */
+    params?: Record<string, string>;
+  };
 }
 
 /** What a directive's content comes from: its command, or `include=...` */
@@ -66,7 +77,8 @@ export type Applied = Mode | 'inline';
 
 export type RegionResult =
   /** `end`: 0-based index of the region's last line (end marker, closing fence, or the replaced line) */
-  | { directive: Directive; kind: 'updated'; changed: boolean; as: Applied; end: number; }
+  /** `command`: what ran (a custom directive's `command` filled in), empty for `include=` */
+  | { directive: Directive; kind: 'updated'; changed: boolean; as: Applied; end: number; command: string; }
   | { directive: Directive; kind: 'failed'; result: CommandResult; }
   | { directive: Directive; kind: 'invalid'; reason: string; };
 
@@ -126,13 +138,22 @@ function parseInclude(spec: string): Include | string {
 }
 
 /** `region start format=md-table` (or `start format=md-table`) → `{ mode: 'region', start: true, format: 'md-table' }`, or an error message */
-function parseOptions(raw: string | undefined): Directive['options'] | string {
+function parseOptions(raw: string | undefined, directives: Record<string, CustomDirective> = {}): Directive['options'] | string {
   const options: Directive['options'] = {};
   const words = raw?.split(/\s+/).filter(Boolean) ?? [];
+  let custom: CustomDirective | undefined;
   if (words[0] && !words[0].includes('=') && words[0] !== 'start') {
     const mode = words.shift()!;
-    if (!isMode(mode)) return `unknown mode "${mode}" (expected ${MODES.join(', ')})`;
-    options.mode = mode;
+    custom = Object.hasOwn(directives, mode) ? directives[mode] : undefined;
+    if (custom) {
+      options.custom = mode;
+      options.mode = custom.mode ?? 'region';
+    } else if (isMode(mode)) {
+      options.mode = mode;
+    } else {
+      const names = [...MODES, ...Object.keys(directives)];
+      return `unknown mode "${mode}" (expected ${names.join(', ')})`;
+    }
   }
   if (words[0] === 'start') {
     words.shift();
@@ -149,16 +170,23 @@ function parseOptions(raw: string | undefined): Directive['options'] | string {
       if (!isFormat(value)) return `unknown format "${value}"`;
       options.format = value;
     } else if (key === 'lang') {
-      if (!options.mode || !FENCED.includes(options.mode)) return `\`lang\` only applies to ${FENCED.map(m => `\`${m}\``).join(', ')} directives`;
+      // a custom directive passes it on to its formatter and template, whatever its mode
+      if (!custom && (!options.mode || !FENCED.includes(options.mode))) return `\`lang\` only applies to ${FENCED.map(m => `\`${m}\``).join(', ')} directives`;
       if (!/^[\w.+#-]+$/.test(value)) return `invalid lang "${value}"`;
       options.lang = value;
     } else if (key === 'include') {
       const include = parseInclude(word.slice('include='.length));
       if (typeof include === 'string') return include;
       options.include = include;
+    } else if (custom && /^[\w-]+$/.test(key!) && word.includes('=')) {
+      (options.params ??= {})[key!] = word.slice(key!.length + 1);
     } else {
       return `unknown option "${word}"`;
     }
+  }
+  if (custom) {
+    if (options.lang === undefined && custom.lang !== undefined && FENCED.includes(options.mode!)) options.lang = custom.lang;
+    if (options.format === undefined && custom.format !== undefined) options.format = custom.format;
   }
   if (isConsole(options.mode) && (options.include || options.format)) {
     return `\`${options.mode}\` shows the command and its output as is, so it doesn't take \`${options.include ? 'include' : 'format'}=\``;
@@ -173,7 +201,7 @@ export function lineDirectives(text: string, line: number, syntax: RegionSyntax)
     .filter(m => !spans.some(([start, end]) => m.index >= start && m.index < end))
     .filter(m => m[2] !== undefined || /(^|\s)include=/.test(m[1] ?? ''))
     .map(m => {
-      const options = parseOptions(m[1]);
+      const options = parseOptions(m[1], syntax.directives);
       const command = m[2] ?? '';
       const conflict = typeof options !== 'string' && !!options.include === !!command;
       return {
@@ -237,6 +265,14 @@ export interface UpdateOptions {
    * every region is reported as unchanged.
    */
   lint?: boolean;
+  /**
+   * For custom directives: the command to run (from the directive's `command`), and
+   * what to write for its output (its `formatter` and `template`). Throws to fail the directive.
+   */
+  custom?: {
+    command: (directive: Directive) => string;
+    transform: (directive: Directive, output: string, command: string) => string;
+  };
 }
 
 /**
@@ -247,7 +283,7 @@ export function updateRegions(
   content: string,
   syntax: RegionSyntax,
   run: (command: string) => CommandResult,
-  { read, lint = false }: UpdateOptions = {},
+  { read, lint = false, custom }: UpdateOptions = {},
 ): { content: string; results: RegionResult[]; stray: number[]; } {
   const lines = content.split('\n');
   const output: string[] = [];
@@ -255,8 +291,10 @@ export function updateRegions(
   /** 0-based lines that mention the marker without being a directive or an end marker */
   const stray: number[] = [];
   const end = endPattern(syntax);
+  /** The command each directive ran, for its result */
+  const ran = new Map<Directive, string>();
   const updated = (directive: Directive, changed: boolean, as: Applied, last: number) =>
-    results.push({ directive, kind: 'updated', changed: changed && !lint, as, end: last });
+    results.push({ directive, kind: 'updated', changed: changed && !lint, as, end: last, command: ran.get(directive) ?? '' });
 
   /** Command output for a directive, formatted; undefined (and a result recorded) on failure */
   const generate = (directive: Directive, options: Directive['options'] | string): string | undefined => {
@@ -265,17 +303,32 @@ export function updateRegions(
       return undefined;
     }
     const { include } = options;
+    const isCustom = options.custom !== undefined;
+    if (isCustom && !custom) {
+      results.push({ directive, kind: 'invalid', reason: `custom directive "${options.custom}" can't run here` });
+      return undefined;
+    }
+    let command = directive.command;
+    try {
+      if (isCustom) command = custom!.command(directive);
+    } catch (err) {
+      results.push({ directive, kind: 'invalid', reason: (err as Error).message });
+      return undefined;
+    }
+    if (!include) ran.set(directive, command);
     const result = include
       ? read?.(include.path) ?? { output: '', status: 1, error: '`include=` is not supported here' }
-      : run(directive.command);
+      : run(command);
     if (result.status !== 0 || result.error) {
       results.push({ directive, kind: 'failed', result });
       return undefined;
     }
     try {
       const text = include ? includeLines(result.output, include) : result.output;
-      if (lint) return '';
-      return options.format ? formatOutput(text, options.format) : text;
+      const formatted = options.format && !lint ? formatOutput(text, options.format) : text;
+      // in lint mode, transform still runs, so it can report a formatter that didn't load
+      const transformed = isCustom ? custom!.transform(directive, formatted, command) : formatted;
+      return lint ? '' : transformed;
     } catch (err) {
       results.push({ directive, kind: 'failed', result: { ...result, error: (err as Error).message } });
       return undefined;

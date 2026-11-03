@@ -1,6 +1,6 @@
 # cmdsync
 
-[![npm](https://img.shields.io/npm/v/cmdsync?logo=npm&color=cb3837)](https://www.npmjs.com/package/cmdsync) [![downloads](https://img.shields.io/npm/dm/cmdsync?color=cb3837)](https://www.npmjs.com/package/cmdsync) <!-- CMDSYNC start: node -p "'[![node](https://img.shields.io/badge/node-' + encodeURIComponent(require('./package.json').engines.node) + '-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org)'" -->[![node](https://img.shields.io/badge/node-%3E%3D22.18.0-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org)<!-- CMDSYNC end --> [![license](https://img.shields.io/badge/license-MIT-blue)](./LICENSE.md) [![dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](./package.json) [![types](https://img.shields.io/badge/types-included-3178c6?logo=typescript&logoColor=white)](./src/index.ts)
+[![npm](https://img.shields.io/npm/v/cmdsync?logo=npm&color=cb3837)](https://www.npmjs.com/package/cmdsync) [![ci](https://github.com/ndonfris/cmdsync/actions/workflows/ci.yml/badge.svg)](https://github.com/ndonfris/cmdsync/actions/workflows/ci.yml) <!-- CMDSYNC start: node -p "'[![node](https://img.shields.io/badge/node-' + encodeURIComponent(require('./package.json').engines.node) + '-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org)'" -->[![node](https://img.shields.io/badge/node-%3E%3D22.18.0-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org)<!-- CMDSYNC end --> [![license](https://img.shields.io/badge/license-MIT-blue)](./LICENSE.md) [![dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](./package.json) [![types](https://img.shields.io/badge/types-included-3178c6?logo=typescript&logoColor=white)](./src/index.ts)
 
 Keep generated parts of your files (docs, tables, changelogs, version strings, config snippets) in sync with the output of real commands.
 
@@ -54,11 +54,11 @@ Or start at the [table of contents](docs/README.md).
 
 ## Contributing
 
-All contributions are welcome: just fork the repository and open a pull request, or [open an issue](https://github.com/ndonfris/cmdsync/issues).
+All contributions are welcome! Just fork the repository and open a pull request, or [open an issue](https://github.com/ndonfris/cmdsync/issues).
 
 - [Development](docs/development.md): setup, tests, and the checks CI runs
 - [Building from source](docs/development.md#building-from-source): trying your checkout in other repositories
-- [Directives](docs/directives.md), [Configuration](docs/configuration.md), [CLI](docs/cli.md): the documented behaviour
+- [Directives](docs/directives.md), [Configuration](docs/configuration.md), [CLI](docs/cli.md): the documented behavior
 
 ## License
 

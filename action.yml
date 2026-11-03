@@ -73,6 +73,8 @@ runs:
         INPUT_ARGS: ${{ inputs.args }}
       run: |
         set -f
+        # with "shell": "auto" (the default), run directives' commands in sh, unless the workflow says otherwise
+        export CMDSYNC_SHELL="${CMDSYNC_SHELL:-sh}"
         args=()
         case "$INPUT_MODE" in
           check) args+=(--check) ;;

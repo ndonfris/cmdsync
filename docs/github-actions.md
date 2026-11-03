@@ -8,7 +8,7 @@ When `GITHUB_ACTIONS=true`, the CLI also:
 
 ## Using the action
 
-The action builds the CLI from source, so it doesn't need an npm release. Install whatever your directives run (and `shell`) before it.
+The action builds the CLI from source, so it doesn't need an npm release. Install whatever your directives run (and `shell`) before it. With `"shell": "auto"` (the default) it runs directives' commands in `sh`; set `CMDSYNC_SHELL` in the workflow's `env` for another shell.
 
 ```yaml
 - uses: actions/setup-node@v4

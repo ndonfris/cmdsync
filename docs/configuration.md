@@ -108,6 +108,8 @@ By default (`"shell": "auto"`) commands run in the shell you started cmdsync fro
 
 `CMDSYNC_SHELL=bash cmdsync` overrides the detection for a run (or a terminal, exported), and `-s`/`--shell` or a `shell` in a config pins it outright.
 
+In CI, where there's no interactive shell to find, run commands in `sh` for the same output as everyone's: cmdsync's own workflows set `CMDSYNC_SHELL: sh`, and so does [the GitHub Action](github-actions.md#using-the-action) unless your workflow sets it.
+
 Commands written for one shell can mean something else in another (`$(...)`, `string`, `set`), so when a project's directives need a particular shell, set `"shell"` in its config: then contributors and CI all regenerate the same output. `auto` is best left to your [global `defaults`](#multiple-repositories), or projects whose commands are plain enough for any shell.
 
 ## Post-update commands

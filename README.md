@@ -445,6 +445,8 @@ Options:
                            it when the editor exits
       --check              Don't write; exit 1 if any region is out of date
   -n, --dry-run            Don't write; report what would change
+  -i, --interactive        Show each change and ask whether to apply it
+                           (y/n, a/d: all or none left in the file, q: quit)
   -d, --diff               Don't write; print a unified diff of what would
                            change, and exit 1 if anything is out of date
       --staged             Write, then `git add` the files that changed; refuses
@@ -530,6 +532,30 @@ Typical `package.json` scripts:
 +1.3.0
  <!-- CMDSYNC end -->
 ```
+
+### Choosing which changes to apply
+
+`cmdsync -i` (`--interactive`, also `cmdsync update -i`) regenerates everything, then shows each change as a diff, like `git add -p`, and asks before writing it:
+
+````text
+README.md:12  my-cli --help  (1/2)
+@@ -11,4 +11,4 @@
+ <!-- CMDSYNC codeblock: my-cli --help -->
+ ```text
+-Usage: my-cli [options]
++Usage: my-cli [options] <file>
+ ```
+Apply this change [y,n,a,d,q,?]?
+````
+
+| Key | Does |
+| --- | --- |
+| `y` / `n` | apply / skip this change |
+| `a` / `d` | apply / skip this change and every later one in the file |
+| `q` | skip this change and everything after it, then write what was accepted |
+| `?` | help |
+
+Only files with an accepted change are written, and [`postUpdate`](#post-update-commands) commands get just those. Each run of changed lines is one change, so two regions next to each other are still asked about separately. Answers are read a line at a time from stdin, so they can be piped (`printf 'y\nn\n' | cmdsync -i`); the end of input counts as `q`. It can't be combined with `check`, `status`, `--dry-run`, `--diff` or `--staged`, which never write or don't ask.
 
 ### Linting directives
 

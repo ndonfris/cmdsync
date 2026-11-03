@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { diffLines, unifiedDiff } from '../src/diff.js';
+import { changesOf, diffLines, unifiedDiff } from '../src/diff.js';
 
 describe('diffLines', () => {
   it('finds a shortest edit script', () => {
@@ -30,5 +30,31 @@ describe('unifiedDiff', () => {
     assert.equal(unifiedDiff('a\nb', 'a\nb\n'), [
       '--- a/file', '+++ b/file', '@@ -1,2 +1,2 @@', ' a', '-b', '\\ No newline at end of file', '+b', '',
     ].join('\n'));
+  });
+});
+
+describe('changesOf', () => {
+  it('splits a diff into runs of changed lines, and applies any subset of them', () => {
+    const before = 'a\nb\nc\nd\ne\n';
+    const after = 'A\nb\nc\nD\nE\nf\n';
+    const { changes, apply } = changesOf(before, after, { context: 1 });
+    assert.deepEqual(changes.map(c => c.line), [1, 4]);
+    assert.equal(changes[1]?.hunk, '@@ -3,3 +3,4 @@\n c\n-d\n-e\n+D\n+E\n+f');
+    assert.equal(apply([true, false]), 'A\nb\nc\nd\ne\n');
+    assert.equal(apply([false, true]), 'a\nb\nc\nD\nE\nf\n');
+  });
+
+  it('applying none gives the old text and all gives the new one, newline at the end or not', () => {
+    const pick = () => Array.from({ length: Math.floor(Math.random() * 12) }, () => 'abc'[Math.floor(Math.random() * 3)]!);
+    for (let n = 0; n < 300; n++) {
+      const eol = () => Math.random() < 0.5 ? '\n' : '';
+      const a = pick();
+      const b = pick();
+      const before = a.length ? a.join('\n') + eol() : '';
+      const after = b.length ? b.join('\n') + eol() : '';
+      const { changes, apply } = changesOf(before, after);
+      assert.equal(apply(changes.map(() => false)), before, JSON.stringify({ before, after }));
+      assert.equal(apply(changes.map(() => true)), after, JSON.stringify({ before, after }));
+    }
   });
 });

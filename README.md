@@ -1,6 +1,8 @@
-# cmdsync
+<div align="center">
 
-[![npm](https://img.shields.io/npm/v/cmdsync?logo=npm&color=a8322d)](https://www.npmjs.com/package/cmdsync) [![ci](https://img.shields.io/github/actions/workflow/status/ndonfris/cmdsync/ci.yml?branch=master&label=ci&logo=github)](https://github.com/ndonfris/cmdsync/actions/workflows/ci.yml) <!-- CMDSYNC start: node -p "'[![node](https://img.shields.io/badge/node-' + encodeURIComponent(require('./package.json').engines.node) + '-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org)'" -->[![node](https://img.shields.io/badge/node-%3E%3D22.18.0-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org)<!-- CMDSYNC end --> [![license](https://img.shields.io/badge/license-MIT-6f9fd8)](./LICENSE.md) [![dependencies](https://img.shields.io/badge/dependencies-0-8957e5)](./package.json) [![types](https://img.shields.io/badge/types-included-3178c6?logo=typescript&logoColor=white)](./src/index.ts)
+# cmdsync <br/> [![npm](https://img.shields.io/npm/v/cmdsync?logo=npm&color=a8322d)](https://www.npmjs.com/package/cmdsync) [![ci](https://img.shields.io/github/actions/workflow/status/ndonfris/cmdsync/ci.yml?branch=master&label=ci&logo=github)](https://github.com/ndonfris/cmdsync/actions/workflows/ci.yml) <!-- CMDSYNC start: node -p "'[![node](https://img.shields.io/badge/node-' + encodeURIComponent(require('./package.json').engines.node) + '-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org)'" -->[![node](https://img.shields.io/badge/node-%3E%3D22.18.0-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org)<!-- CMDSYNC end --> [![license](https://img.shields.io/badge/license-MIT-6f9fd8)](./LICENSE.md) [![dependencies](https://img.shields.io/badge/dependencies-0-8957e5)](./package.json) [![types](https://img.shields.io/badge/types-included-3178c6?logo=typescript&logoColor=white)](./src/index.ts)
+
+</div>
 
 Keep generated parts of your files (docs, tables, changelogs, version strings, config snippets) in sync with the output of real commands.
 
@@ -16,12 +18,151 @@ Running `cmdsync` executes each command and replaces **only the content the comm
 
 ## Features
 
-- **Update content inside existing files.** Target a region, code block, line, or inline value in md, mdx, html, yaml, source code, or any file with comments. Surrounding content stays intact ([directives](docs/directives.md)).
-- **Keep examples tied to their source.** Capture real command output, show a command alongside its result, or include a file or selected lines directly ([includes](docs/directives.md#including-files)).
-- **Turn output into readable docs.** Render JSON as Markdown or HTML tables, or define reusable templates and JavaScript/TypeScript formatters ([tables](docs/directives.md#tables), [custom directives](docs/custom-directives.md)).
-- **Review changes before applying them.** Preview a diff with `cmdsync status` or approve changes individually with `cmdsync -i`. Unchanged output leaves files untouched; failed commands preserve their existing content ([CLI](docs/cli.md)).
-- **Catch stale content in your workflow.** Use `cmdsync check` in CI, regenerate with a pre-commit hook, or open downstream update PRs when you release ([git hooks](docs/git-hooks.md), [GitHub Actions](docs/github-actions.md)).
-- **Highly customizable and configurable.** Use a local config in your project, a global config for all your repositories, or a combination of both. Specify which commands are allowed, how to install missing binaries, run post-update commands, and more ([configuration](docs/configuration.md)).
+- **Highly customizable and configurable.** Use a local config in your project, a global config for all your repositories, or a combination of both. Specify which commands are allowed, how to install missing binaries, run post-update commands, and more [configuration](docs/configuration.md).
+
+- **Update content inside existing files.** [Target a region, code block, line, or inline value](docs/directives.md) in `md`, `mdx`, `html`, `yaml`, or **any file** with *<ins>comments</ins>*. Surrounding content stays intact
+
+- **Keep examples tied to their source.** Capture real command output, show a command alongside its result, or [include a file or selected lines directly](docs/directives.md#including-files).
+
+- **Turn output into readable docs.** Render JSON as [Markdown or HTML tables](docs/directives.md#tables), or define [reusable templates and JavaScript/TypeScript formatters](docs/custom-directives.md).
+
+- **Review changes before applying them.** Preview a diff with `cmdsync status` or approve changes individually with `cmdsync -i`. Unchanged output leaves files untouched; failed commands preserve their existing content. The [CLI](docs/cli.md) specifies lots of other useful combinations.
+
+- **Catch stale content in your workflow.** Use `cmdsync check` in [CI](docs/configuration.md), regenerate with a [pre-commit](docs/git-hooks.md) hook, or open downstream update PRs when you release via [Github Actions](docs/github-actions.md).
+
+<!-- ### Option 2: Capability table -->
+<!---->
+<!-- | Capability | Details | -->
+<!-- | --- | --- | -->
+<!-- | **Update content inside existing files.** | Target a region, code block, line, or inline value in md, mdx, html, yaml, source code, or any file with comments. Surrounding content stays intact ([directives](docs/directives.md)). | -->
+<!-- | **Keep examples tied to their source.** | Capture real command output, show a command alongside its result, or include a file or selected lines directly ([includes](docs/directives.md#including-files)). | -->
+<!-- | **Turn output into readable docs.** | Render JSON as Markdown or HTML tables, or define reusable templates and JavaScript/TypeScript formatters ([tables](docs/directives.md#tables), [custom directives](docs/custom-directives.md)). | -->
+<!-- | **Review changes before applying them.** | Preview a diff with `cmdsync status` or approve changes individually with `cmdsync -i`. Unchanged output leaves files untouched; failed commands preserve their existing content ([CLI](docs/cli.md)). | -->
+<!-- | **Catch stale content in your workflow.** | Use `cmdsync check` in CI, regenerate with a pre-commit hook, or open downstream update PRs when you release ([git hooks](docs/git-hooks.md), [GitHub Actions](docs/github-actions.md)). | -->
+<!-- | **Highly customizable and configurable.** | Use a local config in your project, a global config for all your repositories, or a combination of both. Specify which commands are allowed, how to install missing binaries, run post-update commands, and more ([configuration](docs/configuration.md)). | -->
+<!---->
+<!-- ### Option 3: Grouped sections -->
+<!---->
+<!-- #### Sources and placement -->
+<!---->
+<!-- - **Update content inside existing files.** Target a region, code block, line, or inline value in md, -->
+<!--   mdx, html, yaml, source code, or any file with comments. Surrounding content stays intact ([directives](docs/directives.md)). -->
+<!-- - **Keep examples tied to their source.** Capture real command output, show a command alongside its -->
+<!--   result, or include a file or selected lines directly ([includes](docs/directives.md#including-files)). -->
+<!---->
+<!-- #### Formatting and configuration -->
+<!---->
+<!-- - **Turn output into readable docs.** Render JSON as Markdown or HTML tables, or define reusable -->
+<!--   templates and JavaScript/TypeScript formatters ([tables](docs/directives.md#tables), [custom directives](docs/custom-directives.md)). -->
+<!-- - **Highly customizable and configurable.** Use a local config in your project, a global config for -->
+<!--   all your repositories, or a combination of both. Specify which commands are allowed, how to install -->
+<!--   missing binaries, run post-update commands, and more ([configuration](docs/configuration.md)). -->
+<!---->
+<!-- #### Review and automation -->
+<!---->
+<!-- - **Review changes before applying them.** Preview a diff with `cmdsync status` or approve changes -->
+<!--   individually with `cmdsync -i`. Unchanged output leaves files untouched; failed commands preserve -->
+<!--   their existing content ([CLI](docs/cli.md)). -->
+<!-- - **Catch stale content in your workflow.** Use `cmdsync check` in CI, regenerate with a pre-commit -->
+<!--   hook, or open downstream update PRs when you release ([git hooks](docs/git-hooks.md), [GitHub Actions](docs/github-actions.md)). -->
+<!---->
+## Usage
+
+<details open>
+<summary><b><ins>Basic example</ins></b></summary>
+
+> Install `cmdsync` in your project:
+>
+> ```sh
+> npm install --save-dev cmdsync
+> npx cmdsync init
+> ```
+>
+> Add a directive to your `README` or any documentation where you want command output to appear:
+>
+> ```markdown
+> <!-- CMDSYNC start: node --version -->
+> <!-- CMDSYNC end -->
+> ```
+>
+> Run `npx cmdsync` to fill the region:
+>
+> ```markdown
+> <!-- CMDSYNC start: node --version -->
+> v22.18.0
+> <!-- CMDSYNC end -->
+> ```
+>
+> The version shown comes from your installed Node.js. Run cmdsync again whenever you want to refresh it. `start` replaces the region between the comments; you can also write `region start` explicitly.
+
+</details>
+
+<details>
+<summary><b><ins>Update an inline value</ins></b></summary>
+
+> Keep a value inside a sentence up to date by putting both comments on the same line:
+>
+> ```markdown
+> Built with Node.js <!-- CMDSYNC start: node --version -->v22.18.0<!-- CMDSYNC end -->.
+> ```
+>
+> Running `npx cmdsync` replaces only the value between the comments. Inline updates use `start` and `end` on the same line, rather than a separate `inline` keyword.
+
+</details>
+
+<details>
+<summary><b><ins>Fill a codeblock from command output</ins></b></summary>
+
+> `codeblock` updates the fenced block without an end comment; with `lang=ts`, it can also create the block if none exists.
+>
+> ````markdown
+> <!-- CMDSYNC codeblock lang=txt: node --version -->
+> ```txt
+> ```
+> ````
+>
+> After running `npx cmdsync`, the block is filled with the command output:
+>
+> ````markdown
+> <!-- CMDSYNC codeblock lang=txt: node --version -->
+> ```txt
+> v22.18.0
+> ```
+> ````
+
+</details>
+
+<details>
+<summary><b><ins>Include a source example</ins></b></summary>
+
+> Keep a code block in sync with a file:
+>
+> ````markdown
+> <!-- CMDSYNC codeblock lang=ts include=./src/example.ts -->
+> ```ts
+> // This content is replaced with the contents of src/example.ts.
+> ```
+> ````
+>
+> Paths are relative to the document containing the directive.
+
+</details>
+
+<details>
+<summary><b><ins>Review and check changes</ins></b></summary>
+
+> ```sh
+> npx cmdsync status   # Preview changes without writing
+> npx cmdsync -i       # Approve changes individually
+> npx cmdsync check    # Exit with an error if generated content is stale
+> ```
+
+</details>
+
+*See Also:*
+- [getting started](docs/getting-started.md) for setup guide
+- [directives](docs/directives.md) for tables, other modes, and more examples
+- [complete examples](https://github.com/ndonfris/cmdsync/blob/master/examples/)
 
 ## Documentation
 

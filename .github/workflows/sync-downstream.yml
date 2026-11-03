@@ -1,7 +1,7 @@
 # Reusable workflow: after a release of the calling repository (A), regenerate
 # the cmdsync regions of other repositories (B, C, ...) and open, or update, a
 # pull request in each one. See "Updating other repositories on release" in
-# the README.
+# docs/github-actions.md.
 name: sync-downstream
 
 on:

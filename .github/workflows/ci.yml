@@ -1,5 +1,5 @@
 # Check every push and pull request: types, build, tests, and that everything
-# generated from the source (README regions, the examples' docs, the man page) is
+# generated from the source (README and docs/ regions, the examples' docs, the man page) is
 # committed up to date. Runs on the oldest supported Node (engines: >=22.18) and
 # a current one.
 name: ci
@@ -40,7 +40,7 @@ jobs:
       # typecheck, build, test
       - run: yarn verify
 
-      - name: The README's regions are up to date
+      - name: The README's and docs' regions are up to date
         run: yarn docs:check
 
       - name: The examples' docs are up to date

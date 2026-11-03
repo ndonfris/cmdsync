@@ -36,7 +36,7 @@ export interface CustomDirective {
   lang?: string;
   /** Default `format=`, applied to the output before `formatter` and `template` */
   format?: 'md-table' | 'html-table';
-  /** Text written, with `{output}`, `{cmd}`, `{file}`, ... placeholders and `|filters` (see the README) */
+  /** Text written, with `{output}`, `{cmd}`, `{file}`, ... placeholders and `|filters` (see docs/custom-directives.md) */
   template?: string;
   /** JS/TS module (relative to the config root) whose default export turns the output into what's written */
   formatter?: string;

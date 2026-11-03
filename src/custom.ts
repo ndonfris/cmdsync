@@ -17,10 +17,8 @@ import type { Directive, Mode, UpdateOptions } from './regions.js';
 export interface FormatterContext {
   /** The command's output (after `format=`, when the directive has one), trailing whitespace included */
   output: string;
-  /** The command as written in the directive */
-  cmd: string;
-  /** The command that ran (the custom directive's `command`, with `{cmd}` filled in) */
-  command: string;
+  /** The command as written in the directive: `my-cli env` in `<!-- CMDSYNC name start: my-cli env -->` */
+  input: string;
   /** The custom directive's name */
   name: string;
   /** The built-in mode that writes what the formatter returns */
@@ -34,14 +32,6 @@ export interface FormatterContext {
   /** 1-based line of the directive */
   line: number;
   config: ResolvedConfig;
-  /** Wrap text in a fenced code block, with a fence longer than any inside it */
-  fence: (text: string, lang?: string) => string;
-  /** Prefix every line (`> ` by default) */
-  quote: (text: string, prefix?: string) => string;
-  /** Indent every non-empty line (2 spaces by default, or the given prefix) */
-  indent: (text: string, by?: number | string) => string;
-  /** Render a template with this directive's placeholders: `ctx.render('{cmd}: {output|trim}')` */
-  render: (template: string) => string;
 }
 
 /**
@@ -56,12 +46,17 @@ export const defineFormatter = (formatter: Formatter): Formatter => formatter;
 const fenceFor = (text: string) =>
   '`'.repeat(Math.max(3, ...[...text.matchAll(/^\s*(`{3,})/gm)].map(m => m[1]!.length + 1)));
 
+/** Helpers for formatters (also behind the template filters of the same names) */
+
+/** Wrap text in a fenced code block, with a fence longer than any inside it */
 export const fence = (text: string, lang = '') => {
   const f = fenceFor(text);
   return `${f}${lang}\n${text.replace(/\n+$/, '')}\n${f}`;
 };
+/** Prefix every line (`> ` by default) */
 export const quote = (text: string, prefix = '> ') => text.replace(/\n+$/, '').replace(/^/gm, prefix);
-export const indentText = (text: string, by: number | string = 2) => {
+/** Indent every non-empty line by `by` spaces (2 by default), or by the text `by` */
+export const indent = (text: string, by: number | string = 2) => {
   const prefix = typeof by === 'number' ? ' '.repeat(by) : by;
   return text.replace(/^(?=.)/gm, prefix);
 };
@@ -71,7 +66,7 @@ const escapeHtml = (text: string) => text.replace(/[&<>"']/g, c => `&#${c.charCo
 const FILTERS: Record<string, (value: string, arg: string | undefined, vars: Record<string, string>) => string> = {
   trim: v => v.trim(),
   quote: (v, arg) => quote(v, arg ?? '> '),
-  indent: (v, arg) => indentText(v, arg === undefined ? 2 : /^\d+$/.test(arg) ? Number(arg) : arg),
+  indent: (v, arg) => indent(v, arg === undefined ? 2 : /^\d+$/.test(arg) ? Number(arg) : arg),
   code: (v, arg, vars) => fence(v, arg ?? vars.lang ?? ''),
   json: v => JSON.stringify(v),
   html: v => escapeHtml(v),
@@ -114,14 +109,15 @@ export function renderTemplate(template: string, vars: Record<string, string>): 
 
 const today = () => new Date().toISOString();
 
-/** Placeholders for one directive */
-export function templateVars(context: Omit<FormatterContext, 'fence' | 'quote' | 'indent' | 'render'>): Record<string, string> {
+/** Placeholders for one directive; `command` is what ran (the custom directive's `command`, filled in) */
+export function templateVars(context: FormatterContext, command = context.input): Record<string, string> {
   const now = today();
   const file = relative(context.config.root, context.file) || context.file;
   return {
     output: context.output,
-    cmd: context.cmd,
-    command: context.command,
+    input: context.input,
+    cmd: context.input,
+    command,
     name: context.name,
     mode: context.mode,
     lang: context.lang ?? '',
@@ -175,10 +171,9 @@ export function customHooks(
   lint = false,
 ): NonNullable<UpdateOptions['custom']> {
   const definition = (directive: Directive): CustomDirective => config.directives[directive.options.custom!]!;
-  const baseVars = (directive: Directive) => templateVars({
-    output: '',
-    cmd: directive.command,
-    command: directive.command,
+  const contextFor = (directive: Directive, output: string): FormatterContext => ({
+    output,
+    input: directive.command,
     name: directive.options.custom!,
     mode: directive.options.mode ?? 'region',
     lang: directive.options.lang,
@@ -191,7 +186,7 @@ export function customHooks(
   return {
     command: directive => {
       const { command } = definition(directive);
-      return command ? renderTemplate(command, baseVars(directive)) : directive.command;
+      return command ? renderTemplate(command, templateVars(contextFor(directive, ''))) : directive.command;
     },
     transform: (directive, output, command) => {
       const { formatter: path, template } = definition(directive);
@@ -203,32 +198,14 @@ export function customHooks(
         formatter = loaded;
       }
       if (lint) return '';
-      const context = {
-        output,
-        cmd: directive.command,
-        command,
-        name: directive.options.custom!,
-        mode: directive.options.mode ?? 'region',
-        lang: directive.options.lang,
-        params: directive.options.params ?? {},
-        file,
-        line: directive.line + 1,
-        config,
-      };
-      const vars = () => templateVars(context);
+      const context = contextFor(directive, output);
       let text = output;
       if (formatter) {
-        const result = formatter({
-          ...context,
-          fence,
-          quote,
-          indent: indentText,
-          render: (t: string) => renderTemplate(t, vars()),
-        });
+        const result = formatter(context);
         if (typeof result !== 'string') throw new Error(`formatter ${path} returned ${typeof result}, not a string`);
         text = result;
       }
-      return template === undefined ? text : renderTemplate(template, { ...vars(), output: text, fence: fenceFor(text) });
+      return template === undefined ? text : renderTemplate(template, { ...templateVars(context, command), output: text, fence: fenceFor(text) });
     },
   };
 }

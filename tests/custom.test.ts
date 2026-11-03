@@ -66,8 +66,9 @@ describe('custom directives', () => {
       shout: { formatter: './shout.mjs', template: '<{output}>' },
       broken: { formatter: './broken.mjs' },
     }, {
-      'pretty.ts': `export default (ctx: { command: string; output: string; lang?: string; fence: (t: string, l?: string) => string; }): string =>
-        [ctx.fence(ctx.command, ctx.lang ?? 'sh'), '', ctx.fence(ctx.output, 'txt')].join('\\n');`,
+      'pretty.ts': `import { fence } from ${JSON.stringify(join(import.meta.dirname, '..', 'src', 'custom.ts'))};
+        import type { FormatterContext } from ${JSON.stringify(join(import.meta.dirname, '..', 'src', 'custom.ts'))};
+        export default (ctx: FormatterContext): string => [fence(ctx.input, ctx.lang ?? 'sh'), '', fence(ctx.output, 'txt')].join('\\n');`,
       'shout.mjs': 'export const format = ctx => ctx.output.trim().toUpperCase() + ` ${ctx.params.end ?? ""}`;',
       'broken.mjs': 'export default 42;',
       'a.md': md('<!-- CMDSYNC pretty start lang=fish: echo hi -->', '<!-- CMDSYNC end -->', 'x <!-- CMDSYNC shout start end=yes: echo yo -->old<!-- CMDSYNC end -->', '<!-- CMDSYNC broken start: echo -->', 'keep', '<!-- CMDSYNC end -->', ''),
@@ -82,6 +83,15 @@ describe('custom directives', () => {
     const failed = result?.regions.find(r => r.kind === 'failed');
     assert.match(failed?.kind === 'failed' ? failed.result.error ?? '' : '', /formatter \.\/broken\.mjs: its default export .* is not a function/);
     assert.ok(dir);
+  });
+
+  it('formatters get only output, input, name, mode, lang, params, file, line and config', async () => {
+    const { config } = project({ keys: { formatter: './keys.mjs', mode: 'line' } }, {
+      'keys.mjs': 'export default ctx => Object.keys(ctx).join(",") + " " + ctx.input + " " + ctx.line;',
+      'a.md': '<!-- CMDSYNC keys: echo hi -->\nold\n',
+    });
+    const [result] = run(config, { write: false, formatters: await loadFormatters(config) });
+    assert.equal(result?.content, '<!-- CMDSYNC keys: echo hi -->\noutput,input,name,mode,lang,params,file,line,config echo hi 1\n');
   });
 
   it('config validation rejects reserved names and unknown keys', () => {

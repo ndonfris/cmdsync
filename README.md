@@ -87,6 +87,8 @@ Running `cmdsync` executes each command and replaces **only the content the comm
 > <!-- CMDSYNC end -->
 > ```
 >
+> <ins>NOTE:</ins> `start` replaces the region between the comments; you can also write `region start` explicitly.
+>
 > Run `npx cmdsync` to fill the region:
 >
 > ```markdown
@@ -95,7 +97,15 @@ Running `cmdsync` executes each command and replaces **only the content the comm
 > <!-- CMDSYNC end -->
 > ```
 >
-> The version shown comes from your installed Node.js. Run cmdsync again whenever you want to refresh it. `start` replaces the region between the comments; you can also write `region start` explicitly.
+> The version shown comes from your local `node.js` used.
+>
+> Run `cmdsync` again whenever you want to refresh it. To review and check changes before applying them:
+>
+> ```sh
+> npx cmdsync status   # Preview changes without writing
+> npx cmdsync -i       # Approve changes individually
+> npx cmdsync check    # Exit with an error if generated content is stale
+> ```
 
 </details>
 
@@ -150,16 +160,16 @@ Running `cmdsync` executes each command and replaces **only the content the comm
 
 </details>
 
-<details>
-<summary><b><ins>Review and check changes</ins></b></summary>
-
-> ```sh
-> npx cmdsync status   # Preview changes without writing
-> npx cmdsync -i       # Approve changes individually
-> npx cmdsync check    # Exit with an error if generated content is stale
-> ```
-
-</details>
+<!-- <details> -->
+<!-- <summary><b><ins>Review and check changes</ins></b></summary> -->
+<!---->
+<!-- > ```sh -->
+<!-- > npx cmdsync status   # Preview changes without writing -->
+<!-- > npx cmdsync -i       # Approve changes individually -->
+<!-- > npx cmdsync check    # Exit with an error if generated content is stale -->
+<!-- > ``` -->
+<!---->
+<!-- </details> -->
 
 *For more examples, visit:*
 

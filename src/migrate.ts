@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { CONFIG_FILE, DEFAULT_CONFIG, PACKAGE_JSON_KEY, type UserConfig, defaultEndMarker, findConfig, resolveConfig, validateConfig } from './config.ts';
 import { collectFiles, syntaxResolver } from './index.ts';
 import { LEGACY_FILES, LEGACY_PACKAGE_JSON_KEY, SCHEMA_URL } from './init.ts';
-import { closingFence, codeSpans, ignoredRange, openingFence } from './regions.ts';
+import { blockEnd, codeSpans, ignoredRange, openingFence } from './regions.ts';
 import type { CommentSyntax } from './syntax.ts';
 
 /** `update-codeblocks`'s default marker */
@@ -52,6 +52,7 @@ export function migrateDirectives(content: string, syntax: CommentSyntax, migrat
 
   const lines = content.split('\n');
   const unclassified: number[] = [];
+  const regionSyntax = { ...syntax, marker: migration.marker, endMarker: migration.endMarker };
   let converted = 0;
   const outsideCode = (line: string) => {
     const spans = syntax.fences ? codeSpans(line) : [];
@@ -73,12 +74,11 @@ export function migrateDirectives(content: string, syntax: CommentSyntax, migrat
   for (let i = 0; i < lines.length; i++) {
     const fence = syntax.fences && openingFence(lines[i]!);
     if (fence) {
-      const closeAt = closingFence(lines, i, fence[2]!);
-      i = closeAt === -1 ? lines.length : closeAt;
+      i = blockEnd(lines, i, fence[2]!);
       continue;
     }
     // an ignored range (`MARKER ignore start` … `MARKER ignore end`) stays as written
-    const ignored = ignoredRange(lines, i, { ...syntax, marker: migration.marker, endMarker: migration.endMarker });
+    const ignored = ignoredRange(lines, i, regionSyntax);
     if (ignored !== undefined) {
       i = ignored === -1 ? lines.length : ignored;
       continue;
@@ -118,10 +118,13 @@ export function migrateDirectives(content: string, syntax: CommentSyntax, migrat
     } else {
       for (let j = i + 1; j < lines.length; j++) {
         const nested = syntax.fences && openingFence(lines[j]!);
+        const ignored = nested ? undefined : ignoredRange(lines, j, regionSyntax);
         if (nested) {
-          const closeAt = closingFence(lines, j, nested[2]!);
-          if (closeAt === -1) break;
-          j = closeAt;
+          j = blockEnd(lines, j, nested[2]!);
+        } else if (ignored !== undefined) {
+          // an end marker shown inside an ignored range isn't this directive's
+          if (ignored === -1) break;
+          j = ignored;
         } else if (isEnd(lines[j]!)) {
           mode = 'start';
           endAt = j;

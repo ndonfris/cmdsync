@@ -52,6 +52,14 @@ describe('custom directives', () => {
     assert.equal(content, md('<!-- M help: x -->', '```text', 'ran x --help', '```', '<!-- M stamp label=X: y -->', 'X: ran y', '<!-- M quote start: z -->', '> ran z', '<!-- M end -->'));
   });
 
+  it('in a console mode, shows the command that ran: its `command` template filled in', () => {
+    const directives = { help: { mode: 'console', command: '{cmd} --help' } };
+    const { config } = project(directives);
+    const input = md('<!-- M help: mycli -->', '```console', 'old', '```');
+    const { content } = updateRegions(input, syntax(directives), echo, { custom: customHooks(config, join(config.root, 'a.md'), new Map()) });
+    assert.equal(content, md('<!-- M help: mycli -->', '```console', '$ mycli --help', 'ran mycli --help', '```'));
+  });
+
   it('a custom directive refuses unknown modes and still validates built-in options', () => {
     const directives = { quote: { template: '{output}' } };
     const { results } = updateRegions(md('<!-- M qoute: x -->', '<!-- M quote format=nope: x -->'), syntax(directives), echo);

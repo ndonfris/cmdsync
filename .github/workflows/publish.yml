@@ -1,0 +1,75 @@
+# Publish cmdsync to npm when a GitHub release is published (tag `v<version>`).
+#
+# Authentication, in order of preference:
+#   1. npm trusted publishing (OIDC): no secret needed once the package's
+#      "Trusted publisher" on npmjs.com points at this repository and workflow
+#   2. an `NPM_TOKEN` repository secret (a granular automation token)
+#
+# Run it by hand (Actions > publish > Run workflow) with `dry-run` to see what
+# would be published without publishing.
+name: publish
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Run every check and `npm publish --dry-run`, without publishing'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  # OIDC token for trusted publishing and provenance
+  id-token: write
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: yarn
+
+      # trusted publishing needs npm >= 11.5.1, newer than what node 22 ships with
+      - run: npm install -g npm@latest
+
+      - run: yarn install --frozen-lockfile
+
+      - name: Check the release tag matches package.json
+        if: github.event_name == 'release'
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          version="$(node -p 'require("./package.json").version')"
+          if [ "$TAG" != "v$version" ]; then
+            echo "::error::release tag $TAG does not match package.json version v$version"
+            exit 1
+          fi
+
+      - run: yarn typecheck
+      - run: yarn test
+      - run: yarn docs:check
+      - run: yarn build
+
+      - name: Publish
+        env:
+          # empty when the secret isn't set, and npm falls back to trusted publishing
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run }}
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            npm publish --dry-run --provenance --access public
+          else
+            npm publish --provenance --access public
+          fi

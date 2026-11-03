@@ -353,3 +353,18 @@ describe('updateRegions: console', () => {
     assert.match(String(reason('<!-- M console-pretty include=a.md -->')), /doesn't take `include=`/);
   });
 });
+
+describe('updateRegions: blockquotes', () => {
+  it('ignores directives in a fenced example inside a blockquote', () => {
+    const input = md('> ````markdown', '> <!-- M codeblock include=./missing.ts -->', '> ```ts', '> x', '> ```', '> ````', 'after');
+    const { content, results } = updateRegions(input, markdown, ok('new'));
+    assert.equal(content, input);
+    assert.deepEqual(results, []);
+  });
+
+  it('replaces the body of a code block inside a blockquote, keeping the quote', () => {
+    const input = md('<!-- M codeblock: x -->', '> ```txt', '> old', '> ```');
+    assert.equal(updateRegions(input, markdown, ok('a\nb')).content, md('<!-- M codeblock: x -->', '> ```txt', '> a', '> b', '> ```'));
+    assert.equal(updateRegions(input, markdown, ok('a\n\nb')).content, md('<!-- M codeblock: x -->', '> ```txt', '> a', '>', '> b', '> ```'), 'blank lines stay quoted');
+  });
+});

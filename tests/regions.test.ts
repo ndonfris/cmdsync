@@ -163,6 +163,31 @@ describe('updateRegions: explicit modes', () => {
       md('<!-- M codeblock: x -->', '```', 'new', '```'));
   });
 
+  it('codeblock lang= sets the language of the fence, keeping attributes after it', () => {
+    const input = md('<!-- M codeblock lang=fish: x -->', '', '```sh title="x"', 'old', '```');
+    const { content, results } = updateRegions(input, markdown, ok('new'));
+    assert.equal(content, md('<!-- M codeblock lang=fish: x -->', '', '```fish title="x"', 'new', '```'));
+    assert.deepEqual(results.map(r => r.kind === 'updated' && r.changed), [true]);
+    assert.equal(updateRegions(md('<!-- M codeblock lang=c++: x -->', '~~~', 'new', '~~~'), markdown, ok('new')).content,
+      md('<!-- M codeblock lang=c++: x -->', '~~~c++', 'new', '~~~'));
+  });
+
+  it('codeblock lang= creates the block when none follows, then keeps it up to date', () => {
+    const input = md('  <!-- M codeblock lang=md: x -->', '  text');
+    const first = updateRegions(input, markdown, ok('a\n```sh\nb\n```')).content;
+    assert.equal(first, md('  <!-- M codeblock lang=md: x -->', '  ````md', '  a', '  ```sh', '  b', '  ```', '  ````', '  text'));
+    const second = updateRegions(first, markdown, ok('a\n```sh\nb\n```'));
+    assert.equal(second.content, first);
+    assert.deepEqual(second.results.map(r => r.kind === 'updated' && r.changed), [false]);
+  });
+
+  it('lang= only applies to codeblock directives', () => {
+    for (const head of ['start lang=sh', 'line lang=sh', 'lang=sh']) {
+      const { results } = updateRegions(md(`<!-- M ${head}: x -->`, '```', '```'), markdown, ok('new'));
+      assert.match(results[0]?.kind === 'invalid' ? results[0].reason : '', /`lang` only applies to `codeblock`/);
+    }
+  });
+
   it('codeblock is markdown only', () => {
     const { results } = updateRegions(md('# M codeblock: x', '```', '```'), hash, ok('new'));
     assert.match(results[0]?.kind === 'invalid' ? results[0].reason : '', /only works in markdown/);

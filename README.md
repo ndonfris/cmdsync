@@ -20,7 +20,7 @@ Running `cmdsync` executes each command and replaces **only the content the comm
 ## Directives
 
 ```text
-<!-- CMDSYNC [mode] [start] [format=...]: command -->
+<!-- CMDSYNC [mode] [start] [format=...] [lang=...]: command -->
 ...
 <!-- CMDSYNC end -->
 ```
@@ -81,7 +81,7 @@ The next line must be content, not another directive, an end comment or a code f
 
 ### codeblock
 
-In markdown and mdx, the directive is followed (after optional blank lines) by a fenced code block, and **only the body** of that block is replaced. The fences and info string stay, and no end comment is needed.
+In markdown and mdx, the directive is followed (after optional blank lines) by a fenced code block, and **only the body** of that block is replaced. The fences and info string stay (unless `lang=` is set, see below), and no end comment is needed.
 
 ````markdown
 <!-- CMDSYNC codeblock: my-cli completions fish -->
@@ -89,6 +89,23 @@ In markdown and mdx, the directive is followed (after optional blank lines) by a
 this content is replaced
 ```
 ````
+
+Add `lang=` to set the block's language. It replaces the first word of the info string (attributes after it, like `title="..."`, are kept), and if no fenced block follows the directive, one is created:
+
+````markdown
+<!-- CMDSYNC codeblock lang=fish: my-cli completions fish -->
+````
+
+becomes
+
+````markdown
+<!-- CMDSYNC codeblock lang=fish: my-cli completions fish -->
+```fish
+complete -c my-cli ...
+```
+````
+
+A created block uses a fence longer than any fence in the output, so output that contains code blocks of its own stays intact. `lang` only applies to `codeblock` directives.
 
 `` ``` `` and `~~~` fences both work, including longer fences (` ```` `) that wrap nested blocks. In markdown files, directives shown inside fenced code or inline code (like the examples in this README) are ignored.
 
@@ -268,11 +285,12 @@ Options:
   -h, --help               Show this help
   -v, --version            Show version
 
-Directives: <!-- CMDSYNC [mode] [start] [format=...]: cmd -->
+Directives: <!-- CMDSYNC [mode] [start] [format=...] [lang=...]: cmd -->
   region     replace every line up to <!-- CMDSYNC end -->
              (`start` is short for `region start`; on one line: inline)
   line       replace the next line (output must be one line)
   codeblock  replace the body of the next fenced code block (markdown)
+             (lang=fish sets its language, creating the block if missing)
   (none)     codeblock if a fence follows in markdown, inline if the end
              marker is on the same line, else region
   format=md-table|html-table  render a JSON array printed by cmd as a table

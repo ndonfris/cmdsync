@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package",
   "name": "cmdsync",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Sync command output into comment-delimited regions of any file: markdown/mdx code blocks and tables, html, changelogs, scripts, configs",
   "author": "ndonfris",
   "license": "MIT",
@@ -29,7 +29,7 @@
     "node": ">=22.18.0"
   },
   "bin": {
-    "cmdsync": "./dist/cli.js"
+    "cmdsync": "dist/cli.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

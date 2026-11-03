@@ -6,7 +6,8 @@
  *   region     `<!-- MARKER start: cmd -->` ... lines ... `<!-- MARKER end -->`
  *              (`MARKER start:` is short for `MARKER region start:`)
  *   line       `<!-- MARKER line: cmd -->` then the single line it replaces
- *   codeblock  `<!-- MARKER codeblock: cmd -->` then a fenced code block (markdown only)
+ *   codeblock  `<!-- MARKER codeblock: cmd -->` then a fenced code block (markdown only);
+ *              `codeblock lang=fish` also sets the fence's language, creating the block if missing
  *   inline     `<!-- MARKER start: cmd -->text<!-- MARKER end -->` on one line
  *
  * Without a mode, a markdown directive followed by a fenced code block is a
@@ -26,7 +27,7 @@ export interface Directive {
   line: number;
   command: string;
   /** `MARKER mode start key=value ...: command` */
-  options: { mode?: Mode; start?: true; format?: Format; };
+  options: { mode?: Mode; start?: true; format?: Format; lang?: string; };
 }
 
 export interface CommandResult {
@@ -50,12 +51,16 @@ const markerPattern = (marker: string) => marker.trim().split(/\s+/).map(escapeR
 
 /** Only words and `key=value` between the marker and the colon, so `<!-- MARKER end -->` is never a start */
 export const startPattern = (syntax: RegionSyntax) =>
-  new RegExp(`${escapeRegExp(syntax.open)}\\s*${markerPattern(syntax.marker)}((?:\\s+[\\w.=-]+)*)\\s*:\\s*(.+?)\\s*${closeOrEol(syntax)}`, 'g');
+  new RegExp(`${escapeRegExp(syntax.open)}\\s*${markerPattern(syntax.marker)}((?:\\s+[\\w.=+#-]+)*)\\s*:\\s*(.+?)\\s*${closeOrEol(syntax)}`, 'g');
 
 export const endPattern = (syntax: RegionSyntax) =>
   new RegExp(`${escapeRegExp(syntax.open)}\\s*${markerPattern(syntax.endMarker)}\\s*${closeOrEol(syntax)}`);
 
-const openingFence = (line: string) => line.match(/^(\s*)(`{3,}|~{3,})/);
+const openingFence = (line: string) => line.match(/^(\s*)(`{3,}|~{3,})(.*)$/);
+
+/** A backtick fence longer than any fence-like line in `body`, so the body can't close it */
+const fenceFor = (body: string) =>
+  '`'.repeat(Math.max(3, ...[...body.matchAll(/^\s*(`{3,})/gm)].map(m => m[1]!.length + 1)));
 
 /** A closing fence uses the same character, is at least as long, and has nothing after it */
 const isClosingFence = (line: string, fence: string) => {
@@ -93,9 +98,16 @@ function parseOptions(raw: string | undefined): Directive['options'] | string {
   }
   for (const word of words) {
     const [key, value = ''] = word.split('=');
-    if (key !== 'format') return `unknown option "${word}"`;
-    if (!isFormat(value)) return `unknown format "${value}"`;
-    options.format = value;
+    if (key === 'format') {
+      if (!isFormat(value)) return `unknown format "${value}"`;
+      options.format = value;
+    } else if (key === 'lang') {
+      if (options.mode !== 'codeblock') return '`lang` only applies to `codeblock` directives';
+      if (!/^[\w.+#-]+$/.test(value)) return `invalid lang "${value}"`;
+      options.lang = value;
+    } else {
+      return `unknown option "${word}"`;
+    }
   }
   return options;
 }
@@ -246,8 +258,20 @@ export function updateRegions(
     let next = i;
     while (syntax.fences && mode !== 'region' && next < lines.length && lines[next]!.trim() === '') next++;
     const codeFence = syntax.fences && mode !== 'region' && next < lines.length && openingFence(lines[next]!);
+    if (mode === 'codeblock' && !codeFence && directive.options.lang) {
+      // no block yet: create one right after the directive
+      const body = generate(directive, options)?.replace(/\s+$/, '');
+      if (body === undefined) continue;
+      const indentation = lines[directive.line]!.match(/^\s*/)![0];
+      const fence = fenceFor(body);
+      output.push(`${indentation}${fence}${directive.options.lang}`);
+      if (body !== '') output.push(indent(body, indentation));
+      output.push(`${indentation}${fence}`);
+      results.push({ directive, kind: 'updated', changed: true });
+      continue;
+    }
     if (mode === 'codeblock' && !codeFence) {
-      invalid('expected a fenced code block after the directive (only blank lines may come between)');
+      invalid('expected a fenced code block after the directive (only blank lines may come between; or set `lang=` to create one)');
       continue;
     }
     if (codeFence) {
@@ -260,10 +284,15 @@ export function updateRegions(
       if (body === undefined) continue;
       const previous = lines.slice(next + 1, close).join('\n');
       const replacement = indent(body, codeFence[1]!);
-      output.push(...lines.slice(i, next + 1));
+      // `lang=` replaces the info string's first word, keeping any attributes after it
+      const { lang } = directive.options;
+      const opening = lang === undefined
+        ? lines[next]!
+        : `${codeFence[1]}${codeFence[2]}${codeFence[3]!.replace(/^\s*\S*/, lang)}`;
+      output.push(...lines.slice(i, next), opening);
       if (replacement !== '') output.push(replacement);
       output.push(lines[close]!);
-      results.push({ directive, kind: 'updated', changed: previous !== replacement });
+      results.push({ directive, kind: 'updated', changed: previous !== replacement || opening !== lines[next] });
       i = close + 1;
       continue;
     }

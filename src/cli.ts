@@ -51,11 +51,12 @@ Options:
   -h, --help               Show this help
   -v, --version            Show version
 
-Directives: <!-- CMDSYNC [mode] [start] [format=...]: cmd -->
+Directives: <!-- CMDSYNC [mode] [start] [format=...] [lang=...]: cmd -->
   region     replace every line up to <!-- CMDSYNC end -->
              (\`start\` is short for \`region start\`; on one line: inline)
   line       replace the next line (output must be one line)
   codeblock  replace the body of the next fenced code block (markdown)
+             (lang=fish sets its language, creating the block if missing)
   (none)     codeblock if a fence follows in markdown, inline if the end
              marker is on the same line, else region
   format=md-table|html-table  render a JSON array printed by cmd as a table

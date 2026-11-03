@@ -130,7 +130,7 @@ const stop = () => {
 
 /**
  * Run a package.json script, with `args` passed on, showing each command it comes down to
- * as `test:coverage › test $ node --import tsx --test ...`; resolves to whether it passed.
+ * as `test:coverage › test $ node --test ...`; resolves to whether it passed.
  * The commands run directly (node_modules/.bin is on PATH under yarn), so the package
  * manager doesn't echo them a second time.
  */

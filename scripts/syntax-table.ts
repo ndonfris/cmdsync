@@ -1,5 +1,5 @@
 /** Prints the built-in comment syntax table as JSON, for the README's `format=md-table` region */
-import { BUILTIN_SYNTAX, BY_BASENAME, type CommentSyntax } from '../src/syntax.js';
+import { BUILTIN_SYNTAX, BY_BASENAME, type CommentSyntax } from '../src/syntax.ts';
 
 const delimiters = ({ open, close }: CommentSyntax) => `\`${open}\`${close ? ` … \`${close}\`` : ''}`;
 const names = (list: string[]) => list.map(name => `\`${name}\``).join(' ');

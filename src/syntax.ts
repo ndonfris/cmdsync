@@ -1,5 +1,5 @@
 import { basename, extname } from 'node:path';
-import type { CustomDirective } from './config.js';
+import type { CustomDirective } from './config.ts';
 
 /** How a comment is written in a given file type */
 export interface CommentSyntax {

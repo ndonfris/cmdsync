@@ -2,7 +2,7 @@
  * Prints every diagnostic code from `src/error-codes.ts` as JSON rows, for
  * cmdsync's `format=md-table` / `format=html-table`:
  *
- *   <!-- CMDSYNC start format=md-table: tsx scripts/error-codes.ts --links -->
+ *   <!-- CMDSYNC start format=md-table: node scripts/error-codes.ts --links -->
  *   <!-- CMDSYNC end -->
  *
  * Importing the source (instead of hand-copying its values into the docs)

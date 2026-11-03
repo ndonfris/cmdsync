@@ -20,9 +20,9 @@
  * codeblock, one with its end marker on the same line is inline, and anything
  * else is a region.
  */
-import { BASE_MODES, type CustomDirective } from './config.js';
-import { type Format, formatOutput, isFormat } from './format.js';
-import type { RegionSyntax } from './syntax.js';
+import { BASE_MODES, type CustomDirective } from './config.ts';
+import { type Format, formatOutput, isFormat } from './format.ts';
+import type { RegionSyntax } from './syntax.ts';
 
 export const MODES = BASE_MODES;
 export type Mode = typeof MODES[number];

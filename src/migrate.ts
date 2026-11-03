@@ -11,11 +11,11 @@
  */
 import { existsSync, globSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { CONFIG_FILE, DEFAULT_CONFIG, PACKAGE_JSON_KEY, type UserConfig, defaultEndMarker, findConfig, resolveConfig, validateConfig } from './config.js';
-import { collectFiles, syntaxResolver } from './index.js';
-import { LEGACY_FILES, LEGACY_PACKAGE_JSON_KEY, SCHEMA_URL } from './init.js';
-import { closingFence, codeSpans, openingFence } from './regions.js';
-import type { CommentSyntax } from './syntax.js';
+import { CONFIG_FILE, DEFAULT_CONFIG, PACKAGE_JSON_KEY, type UserConfig, defaultEndMarker, findConfig, resolveConfig, validateConfig } from './config.ts';
+import { collectFiles, syntaxResolver } from './index.ts';
+import { LEGACY_FILES, LEGACY_PACKAGE_JSON_KEY, SCHEMA_URL } from './init.ts';
+import { closingFence, codeSpans, openingFence } from './regions.ts';
+import type { CommentSyntax } from './syntax.ts';
 
 /** `update-codeblocks`'s default marker */
 export const LEGACY_MARKER = 'UPDATE_CODEBLOCK';

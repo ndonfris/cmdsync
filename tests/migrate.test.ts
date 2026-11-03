@@ -1,10 +1,10 @@
-import './setup.js';
+import './setup.ts';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
-import { migrateDirectives, planMigration } from '../src/migrate.js';
+import { migrateDirectives, planMigration } from '../src/migrate.ts';
 
 const md = (...lines: string[]) => lines.join('\n');
 const html = { open: '<!--', close: '-->', fences: true };

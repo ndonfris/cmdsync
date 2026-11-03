@@ -1,11 +1,11 @@
-import './setup.js';
+import './setup.ts';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
-import { hookCommand, installHook } from '../src/git.js';
+import { hookCommand, installHook } from '../src/git.ts';
 
 // keep the user's global/system git config (hooksPath, commit hooks, signing) out of these repos
 const gitConfig = join(mkdtempSync(join(tmpdir(), 'cmdsync-gitconfig-')), 'config');
@@ -14,7 +14,6 @@ process.env.GIT_CONFIG_GLOBAL = gitConfig;
 process.env.GIT_CONFIG_NOSYSTEM = '1';
 
 const cli = join(import.meta.dirname, '..', 'src', 'cli.ts');
-const tsx = join(import.meta.dirname, '..', 'node_modules', '.bin', 'tsx');
 
 const sh = (cwd: string, ...args: string[]) => {
   const { stdout, stderr, status } = spawnSync(args[0]!, args.slice(1), { cwd, encoding: 'utf-8' });
@@ -42,7 +41,7 @@ describe('--staged', () => {
     const dir = repo({ 'version.txt': '1', 'README.md': doc.replace('-->\n<', '-->\n1\n<') });
     writeFileSync(join(dir, 'version.txt'), '2');
     sh(dir, 'git', 'add', 'version.txt');
-    const { status } = sh(dir, tsx, cli, '--staged', '-q');
+    const { status } = sh(dir, process.execPath, cli, '--staged', '-q');
     assert.equal(status, 0);
     assert.match(readFileSync(join(dir, 'README.md'), 'utf-8'), /-->\n2\n</);
     assert.deepEqual(staged(dir).sort(), ['README.md', 'version.txt']);
@@ -51,7 +50,7 @@ describe('--staged', () => {
   it('refuses to stage a stale file that has unstaged changes', () => {
     const dir = repo({ 'version.txt': '1', 'README.md': doc });
     writeFileSync(join(dir, 'README.md'), `${doc}wip\n`);
-    const { status, stderr } = sh(dir, tsx, cli, '--staged', '-q');
+    const { status, stderr } = sh(dir, process.execPath, cli, '--staged', '-q');
     assert.equal(status, 1);
     assert.match(stderr, /README\.md is out of date but has unstaged changes/);
     assert.equal(readFileSync(join(dir, 'README.md'), 'utf-8'), `${doc}wip\n`);
@@ -61,7 +60,7 @@ describe('--staged', () => {
   it('leaves untracked files alone', () => {
     const dir = repo({ 'version.txt': '1' });
     writeFileSync(join(dir, 'NEW.md'), doc);
-    assert.equal(sh(dir, tsx, cli, '--staged', '-q').status, 0);
+    assert.equal(sh(dir, process.execPath, cli, '--staged', '-q').status, 0);
     assert.equal(readFileSync(join(dir, 'NEW.md'), 'utf-8'), doc);
     assert.deepEqual(staged(dir), []);
   });

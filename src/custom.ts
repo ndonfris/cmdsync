@@ -10,8 +10,8 @@
 import { existsSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import type { CustomDirective, ResolvedConfig } from './config.js';
-import type { Directive, Mode, UpdateOptions } from './regions.js';
+import type { CustomDirective, ResolvedConfig } from './config.ts';
+import type { Directive, Mode, UpdateOptions } from './regions.ts';
 
 /** What a formatter gets for one directive */
 export interface FormatterContext {

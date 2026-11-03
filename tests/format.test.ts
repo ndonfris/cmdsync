@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { htmlTable, mdTable, tableRows } from '../src/format.js';
-import { builtinSyntax } from '../src/syntax.js';
+import { htmlTable, mdTable, tableRows } from '../src/format.ts';
+import { builtinSyntax } from '../src/syntax.ts';
 
 describe('tableRows', () => {
   it('uses object keys in first-seen order as columns', () => {

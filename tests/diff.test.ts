@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { changesOf, diffLines, unifiedDiff } from '../src/diff.js';
+import { changesOf, diffLines, unifiedDiff } from '../src/diff.ts';
 
 describe('diffLines', () => {
   it('finds a shortest edit script', () => {

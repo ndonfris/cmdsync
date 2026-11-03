@@ -1,22 +1,22 @@
 import { globSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
-import { type ResolvedConfig, defaultEndMarker } from './config.js';
-import { type LoadedFormatter, customHooks } from './custom.js';
-import { type CommandResult, type RegionResult, updateRegions } from './regions.js';
-import { type InstallEvent, type InstallMode, createRunner, rejectUnrecognized } from './run.js';
-import { type CommentSyntax, type RegionSyntax, builtinSyntax } from './syntax.js';
+import { type ResolvedConfig, defaultEndMarker } from './config.ts';
+import { type LoadedFormatter, customHooks } from './custom.ts';
+import { type CommandResult, type RegionResult, updateRegions } from './regions.ts';
+import { type InstallEvent, type InstallMode, createRunner, rejectUnrecognized } from './run.ts';
+import { type CommentSyntax, type RegionSyntax, builtinSyntax } from './syntax.ts';
 
-export * from './config.js';
-export * from './custom.js';
-export * from './diff.js';
-export * from './format.js';
-export * from './git.js';
-export * from './global.js';
-export * from './init.js';
-export * from './migrate.js';
-export * from './regions.js';
-export * from './run.js';
-export * from './syntax.js';
+export * from './config.ts';
+export * from './custom.ts';
+export * from './diff.ts';
+export * from './format.ts';
+export * from './git.ts';
+export * from './global.ts';
+export * from './init.ts';
+export * from './migrate.ts';
+export * from './regions.ts';
+export * from './run.ts';
+export * from './syntax.ts';
 
 export interface FileResult {
   file: string;

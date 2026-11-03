@@ -6,17 +6,17 @@ import { createInterface } from 'node:readline';
 import { parseArgs } from 'node:util';
 import {
   type ConfigLayer, PACKAGE_JSON_KEY, type UserConfig, loadConfigFile, locateConfig, resolveConfig, resolveConfigSources,
-} from './config.js';
-import { completionScript } from './completions.js';
-import { gitRoot, gitStatus, installHook, stage } from './git.js';
-import { contractHome, expandHome, globalConfigPath, loadGlobalConfig, repoName, saveGlobalConfig, selectRepos } from './global.js';
-import { initConfig, initGlobal, removeRepo } from './init.js';
-import { planMigration } from './migrate.js';
+} from './config.ts';
+import { completionScript } from './completions.ts';
+import { gitRoot, gitStatus, installHook, stage } from './git.ts';
+import { contractHome, expandHome, globalConfigPath, loadGlobalConfig, repoName, saveGlobalConfig, selectRepos } from './global.ts';
+import { initConfig, initGlobal, removeRepo } from './init.ts';
+import { planMigration } from './migrate.ts';
 import {
   type FileResult, type InstallEvent, type RegionResult,
   changesOf, directiveSource, displayPath, loadFormatters, missingBinaries, run, runPostUpdate, unifiedDiff,
-} from './index.js';
-import { PARSE_OPTIONS, SHELLS, type Shell } from './options.js';
+} from './index.ts';
+import { PARSE_OPTIONS, SHELLS, type Shell } from './options.ts';
 
 const HELP = `\
 Usage: cmdsync [update] [options] [paths...]

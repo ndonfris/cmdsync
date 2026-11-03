@@ -1,4 +1,4 @@
-import './setup.js';
+import './setup.ts';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
@@ -9,7 +9,7 @@ import { describe, it } from 'node:test';
 const cli = join(import.meta.dirname, '..', 'src', 'cli.ts');
 
 /** Run the CLI from source in `cwd`, with `input` on stdin, isolated from any global config */
-const cmdsync = (cwd: string, args: string[], input = '', env: Record<string, string> = {}) => spawnSync(process.execPath, ['--import', import.meta.resolve('tsx'), cli, ...args], {
+const cmdsync = (cwd: string, args: string[], input = '', env: Record<string, string> = {}) => spawnSync(process.execPath, [cli, ...args], {
   cwd,
   input,
   encoding: 'utf-8',

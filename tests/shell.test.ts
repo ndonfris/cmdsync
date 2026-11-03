@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { type ProcessInfo, detectShell, processInfo } from '../src/shell.js';
+import { type ProcessInfo, detectShell, processInfo } from '../src/shell.ts';
 
 /** A process tree: pid → [ppid, exe, ...args] */
 const tree = (processes: Record<number, [number, string, ...string[]]>) => (pid: number): ProcessInfo | undefined => {

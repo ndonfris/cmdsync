@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * `yarn test:watch`: build and test on every change, with keys to change what runs.
+ * `yarn watch`: build and test on every change, with keys to change what runs.
  *
  * Watches WATCH (fs.watch, recursive) and, after a change, runs `build` and/or `test`,
  * each shown as `build $ tsc -p tsconfig.json`. A change or a key pressed mid-run stops
  * the run in progress (every step runs in its own process group) and starts over.
  *
- * Arguments are test files or name patterns to start with: `yarn test:watch cli`.
+ * Arguments are test files or name patterns to start with: `yarn watch cli`.
  */
 import { spawn } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, rmSync, statSync, watch as fsWatch } from 'node:fs';

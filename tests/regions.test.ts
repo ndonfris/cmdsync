@@ -184,7 +184,7 @@ describe('updateRegions: explicit modes', () => {
   it('lang= only applies to codeblock directives', () => {
     for (const head of ['start lang=sh', 'line lang=sh', 'lang=sh']) {
       const { results } = updateRegions(md(`<!-- M ${head}: x -->`, '```', '```'), markdown, ok('new'));
-      assert.match(results[0]?.kind === 'invalid' ? results[0].reason : '', /`lang` only applies to `codeblock`/);
+      assert.match(results[0]?.kind === 'invalid' ? results[0].reason : '', /`lang` only applies to `codeblock`, `console`/);
     }
   });
 
@@ -313,5 +313,43 @@ describe('updateRegions: lint', () => {
     const { results, stray } = updateRegions(md('<!-- M strat: a -->', 'x', '<!-- M end -->'), markdown, ok(''), { lint: true });
     assert.equal(results[0]?.kind, 'invalid');
     assert.deepEqual(stray, []);
+  });
+});
+
+describe('updateRegions: console', () => {
+  it('creates a console block with the prompt, command and output, then keeps it up to date', () => {
+    const input = md('  <!-- M console: my-cli --version -->', 'after');
+    const first = updateRegions(input, markdown, ok('1.2.3\n')).content;
+    assert.equal(first, md('  <!-- M console: my-cli --version -->', '  ```console', '  $ my-cli --version', '  1.2.3', '  ```', 'after'));
+    const second = updateRegions(first, markdown, ok('1.3.0'));
+    assert.equal(second.content, first.replace('1.2.3', '1.3.0'));
+    assert.deepEqual(second.results.map(r => r.kind === 'updated' && [r.as, r.changed, r.end]), [['console', true, 4]]);
+    const third = updateRegions(second.content, markdown, ok('1.3.0'));
+    assert.deepEqual(third.results.map(r => r.kind === 'updated' && r.changed), [false]);
+  });
+
+  it('console lang= changes the block language, and empty output leaves just the command', () => {
+    const input = md('<!-- M console lang=shell-session: true -->', '', '```console', 'old', '```');
+    assert.equal(updateRegions(input, markdown, ok('')).content, md('<!-- M console lang=shell-session: true -->', '', '```shell-session', '$ true', '```'));
+  });
+
+  it('console-pretty writes the command and its output as two blocks, replacing both', () => {
+    const input = md('<!-- M console-pretty lang=fish: my-cli env -->', '', '```fish', 'old', '```', '', '```txt', 'old', '```', 'tail');
+    const { content } = updateRegions(input, markdown, ok('A=1\nB=2'));
+    assert.equal(content, md('<!-- M console-pretty lang=fish: my-cli env -->', '', '```fish', 'my-cli env', '```', '', '```txt', 'A=1', 'B=2', '```', 'tail'));
+    assert.equal(updateRegions(content, markdown, ok('A=1\nB=2')).content, content);
+    const created = updateRegions(md('<!-- M console-pretty: x -->'), markdown, ok('y')).content;
+    assert.equal(created, md('<!-- M console-pretty: x -->', '```sh', 'x', '```', '', '```txt', 'y', '```'));
+  });
+
+  it('console modes are markdown only and take no start, include= or format=', () => {
+    const reason = (input: string, syntax = markdown) => {
+      const [result] = updateRegions(input, syntax, ok('x'), { read: () => ok('x')() }).results;
+      return result?.kind === 'invalid' ? result.reason : result?.kind;
+    };
+    assert.match(String(reason('# M console: x', hash)), /only works in markdown/);
+    assert.match(String(reason('<!-- M console start: x -->')), /have no end marker/);
+    assert.match(String(reason('<!-- M console format=md-table: x -->')), /doesn't take `format=`/);
+    assert.match(String(reason('<!-- M console-pretty include=a.md -->')), /doesn't take `include=`/);
   });
 });

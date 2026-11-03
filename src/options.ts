@@ -51,6 +51,7 @@ export const SUBCOMMANDS: Subcommand[] = [
   { name: 'hook', description: 'Add cmdsync --staged to the git pre-commit hook', args: ['install'] },
   { name: 'init', description: 'Create a cmdsync.json here, or the global config (init global)', args: ['global'] },
   { name: 'repos', description: 'List, add or remove repositories in the global config', args: ['list', 'add', 'remove'] },
+  { name: 'migrate', description: 'Convert update-codeblocks and older cmdsync syntax to the current one', args: [] },
   { name: 'lint', description: 'Check every directive without running commands, and list where each one is', args: [] },
 ];
 

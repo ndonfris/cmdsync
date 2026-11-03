@@ -268,6 +268,7 @@ Usage: cmdsync [update] [options] [paths...]
        cmdsync lint [options] [paths...]
        cmdsync init [--package-json] | init global [--add]
        cmdsync repos [list | add [path] | remove <name>]
+       cmdsync migrate [--dry-run | --diff]
        cmdsync completions <bash|zsh|fish|nu>
        cmdsync hook install
 
@@ -303,6 +304,10 @@ Commands:
   repos add [path]         Add a repository (default: this one), with
                            --name <name> and --group <group>...
   repos remove <name>      Remove a repository, by name or path
+  migrate                  Convert an update-codeblocks config and directives,
+                           and directives in older cmdsync syntax (/CMDSYNC,
+                           CMDSYNC[format=x]:), to the current syntax
+                           (--dry-run: only list, --diff: show the changes)
   completions <shell>      Print a completion script for bash, zsh, fish or nu
   hook install             Add `cmdsync --staged` to the git pre-commit hook
                            (prints the line to add if a hook already exists)
@@ -958,7 +963,23 @@ const { content, results: regions } = updateRegions(markdown, syntax, cmd => ({
 
 ## Migrating from `update-codeblocks`
 
-`cmdsync` was previously named `update-codeblocks`. Existing code block directives keep working as fenced code block regions, once you rename:
+`cmdsync` was previously named `update-codeblocks`. `cmdsync migrate` converts a project, from the root of the repository:
+
+```fish
+cmdsync migrate --diff     # show every change, without writing
+cmdsync migrate            # write them
+cmdsync lint               # check the result
+```
+
+It:
+
+- replaces `update-codeblocks.json` with `cmdsync.json`, or renames the `"update-codeblocks"` key in `package.json`, keeping the settings (`package.json` is edited in place, so its formatting stays)
+- rewrites `<!-- UPDATE_CODEBLOCK: cmd -->` (or a custom `marker`) above a fenced block to `<!-- CMDSYNC codeblock: cmd -->`
+- renames `update-codeblocks` in `package.json` scripts, and the action (`uses: ndonfris/cmdsync@master`) and CLI in `.github/workflows`
+- converts directives in older cmdsync syntax: `<!-- CMDSYNC[format=md-table]: cmd -->` … `<!-- /CMDSYNC -->` becomes `<!-- CMDSYNC start format=md-table: cmd -->` … `<!-- CMDSYNC end -->`, and a mode-less `<!-- CMDSYNC: cmd -->` gets its mode (`start` or `codeblock`) written out
+- lists what's left to do by hand, like swapping the `update-codeblocks` dependency for `cmdsync`, and directives it couldn't classify (no end marker or fenced block after them)
+
+Examples in inline code and fenced code blocks are left alone, and running it again changes nothing. What changed, by hand:
 
 | `update-codeblocks` | `cmdsync` |
 | --- | --- |

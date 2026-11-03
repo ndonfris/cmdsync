@@ -4,11 +4,11 @@ Start with [Getting started](getting-started.md), then read whichever guide you 
 
 <!-- CMDSYNC start: node scripts/docs-nav.ts --toc -->
 1. **[Getting started](getting-started.md)**: Install, create a config (`cmdsync init`, or `cmdsync migrate` from update-codeblocks), add a first directive, run it, shell completions
-   - [1. Install](getting-started.md#1-install)
-   - [2. Create a config](getting-started.md#2-create-a-config)
-   - [3. Add a directive](getting-started.md#3-add-a-directive)
-   - [4. Run it](getting-started.md#4-run-it)
-   - [5. Shell completions](getting-started.md#5-shell-completions)
+   - [Install](getting-started.md#1-install)
+   - [Create a config](getting-started.md#2-create-a-config)
+   - [Add a directive](getting-started.md#3-add-a-directive)
+   - [Run it](getting-started.md#4-run-it)
+   - [Shell completions](getting-started.md#5-shell-completions)
 2. **[Local install](local-install.md)**: cmdsync as a dev dependency of a project: running it, scripts, CI and git hooks, upgrading
    - [Running it](local-install.md#running-it)
    - [In CI and git hooks](local-install.md#in-ci-and-git-hooks)

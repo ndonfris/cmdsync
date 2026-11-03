@@ -1,0 +1,242 @@
+.TH CMDSYNC 1 "" "cmdsync 0.1.0" "User Commands"
+.SH NAME
+cmdsync \- keep comment\-delimited regions of files in sync with command output
+.SH SYNOPSIS
+\fBcmdsync\fR [update] [options] [paths...]
+.br
+\fBcmdsync\fR status | check | lint [options] [paths...]
+.br
+\fBcmdsync\fR init [\-\-package\-json] | init global [\-\-add]
+.br
+\fBcmdsync\fR repos [list | add [path] | remove name]
+.br
+\fBcmdsync\fR migrate [\-\-from marker...] [\-\-dry\-run | \-\-diff]
+.br
+\fBcmdsync\fR completions bash|zsh|fish|nu
+.br
+\fBcmdsync\fR hook install
+.SH DESCRIPTION
+.PP
+cmdsync replaces the content of comment\-delimited regions in any file (markdown and mdx code blocks and tables, html, changelogs, scripts, configs) with the output of the command named in the start comment, so generated docs never go stale.
+.PP
+.EX
+<!\-\- CMDSYNC start: my\-cli \-\-version \-\->
+this line is replaced with the output of `my\-cli \-\-version`
+<!\-\- CMDSYNC end \-\->
+.EE
+.PP
+Running cmdsync runs every directive and rewrites its region. A command that fails, or a directive that is invalid, leaves its region as it was and makes cmdsync exit 1. Re\-running with the same output changes nothing.
+.SH DIRECTIVES
+.PP
+<!\-\- CMDSYNC [mode] [start] [key=value...]: command \-\->, in the comment syntax of the file (# for shell and yaml, // for javascript, {/* */} for mdx, ...). The mode says what the output replaces:
+.TP
+\fBstart\fR
+Short for region start: every line up to the end comment, <!\-\- CMDSYNC end \-\->. With the end comment on the same line, the text between them (inline).
+.TP
+\fBline\fR
+The next line; the output must be one line.
+.TP
+\fBcodeblock\fR
+The body of the fenced code block that follows (markdown). lang=fish sets its language, creating the block if there is none.
+.TP
+\fBconsole\fR
+The next fenced code block, as $ command and its output.
+.TP
+\fBconsole\-pretty\fR
+The next two fenced code blocks: the command (lang=, default sh), then its output (txt).
+.PP
+Without a mode it is inferred: codeblock when a fenced block follows in markdown, inline when the end comment is on the same line, else a region.
+.TP
+\fBformat=md\-table|html\-table\fR
+Render a JSON array printed by the command as a table.
+.TP
+\fBinclude=path[#L10\-L20]\fR
+Take the content from a file (relative to the file with the directive) instead of a command; a line range is dedented.
+.TP
+\fBlang=\fR\fIlang\fR
+The language of the code block (codeblock and console modes).
+.PP
+Custom directives from the config's "directives" are used like a mode, and take any key=value word for their template or formatter.
+.SH COMMANDS
+.TP
+\fBupdate\fR
+Regenerate every directive and write the files (the default).
+.TP
+\fBstatus\fR
+Show a diff of what update would change, without writing.
+.TP
+\fBcheck\fR
+Exit 1 if any region is out of date (same as \-\-check).
+.TP
+\fBcompletions\fR
+Print a shell completion script.
+.TP
+\fBhook\fR
+Add cmdsync \-\-staged to the git pre\-commit hook.
+.TP
+\fBinit\fR
+Create a cmdsync.json here, or the global config (init global).
+.TP
+\fBrepos\fR
+List, add or remove repositories in the global config.
+.TP
+\fBmigrate\fR
+Convert update\-codeblocks and older cmdsync syntax to the current one.
+.TP
+\fBlint\fR
+Check every directive without running commands, and list where each one is.
+.SH OPTIONS
+.TP
+\fB\-c\fR, \fB\-\-config\fR \fIfile\fR
+Config file (cmdsync.json or package.json).
+.TP
+\fB\-\-show\fR
+Print the config (\-\-config, or the nearest one) and exit. Only without a subcommand.
+.TP
+\fB\-\-resolved\fR
+Print the merged config, with where each setting comes from. Only without a subcommand.
+.TP
+\fB\-\-edit\fR
+Open the config in $VISUAL / $EDITOR, and check it afterwards. Only without a subcommand.
+.TP
+\fB\-\-check\fR
+Don't write; exit 1 if any region is out of date. Only without a subcommand.
+.TP
+\fB\-n\fR, \fB\-\-dry\-run\fR
+Don't write; report what would change. Only without a subcommand.
+.TP
+\fB\-i\fR, \fB\-\-interactive\fR
+Show each change and ask whether to apply it.
+.TP
+\fB\-d\fR, \fB\-\-diff\fR
+Don't write; print a diff of what would change, exit 1 if any.
+.TP
+\fB\-\-staged\fR
+Write, then git add the changed files (for a pre\-commit hook).
+.TP
+\fB\-m\fR, \fB\-\-marker\fR \fIname\fR
+Start marker (overrides config).
+.TP
+\fB\-e\fR, \fB\-\-end\-marker\fR \fIname\fR
+End marker (overrides config, default: <marker> end).
+.TP
+\fB\-\-comment\fR \fIdelims\fR
+Comment delimiters for every file, e.g. '#' or '/* */'.
+.TP
+\fB\-s\fR, \fB\-\-shell\fR \fIbin\fR
+Shell used to run commands (overrides config).
+.TP
+\fB\-\-command\fR \fIbin\fR
+Allowed command binary, repeatable (overrides config).
+.TP
+\fB\-\-install\fR, \fB\-\-no\-install\fR
+Install every binary a directive uses (\-\-no\-install: never install).
+.TP
+\fB\-\-post\-update\-cmds\fR, \fB\-\-no\-post\-update\-cmds\fR
+Run the postUpdate commands even if nothing changed (\-\-no\-post\-update\-cmds: never).
+.TP
+\fB\-\-all\fR
+Run in every repository of the global config.
+.TP
+\fB\-g\fR, \fB\-\-group\fR \fIname\fR
+Run in the global config repositories of a group, repeatable.
+.TP
+\fB\-r\fR, \fB\-\-repo\fR \fIname\fR
+Run in a global config repository, by name or path, repeatable.
+.TP
+\fB\-q\fR, \fB\-\-quiet\fR
+Only print errors.
+.TP
+\fB\-\-verbose\fR
+Also print every file scanned and every command run, with timings.
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Show help. Only without a subcommand.
+.TP
+\fB\-v\fR, \fB\-\-version\fR
+Show version. Only without a subcommand.
+.SH INIT OPTIONS
+.TP
+\fB\-\-package\-json\fR
+Write a "cmdsync" key in package.json instead of cmdsync.json.
+.TP
+\fB\-\-add\fR
+init global: also add this repository.
+.TP
+\fB\-\-name\fR \fIvalue\fR
+init global \-\-add: the repository's name.
+.TP
+\fB\-\-group\fR \fIname\fR
+init global \-\-add: a group for the repository, repeatable.
+.SH REPOS OPTIONS
+.TP
+\fB\-\-name\fR \fIvalue\fR
+repos add: the repository's name.
+.TP
+\fB\-\-group\fR \fIname\fR
+repos add: a group for the repository, repeatable.
+.SH MIGRATE OPTIONS
+.TP
+\fB\-n\fR, \fB\-\-dry\-run\fR
+Only list what would change.
+.TP
+\fB\-d\fR, \fB\-\-diff\fR
+Show the changes, without writing.
+.TP
+\fB\-q\fR, \fB\-\-quiet\fR
+Only print errors.
+.TP
+\fB\-f\fR, \fB\-\-from\fR \fImarker\fR
+Also convert directives of this marker, repeatable.
+.SH CONFIGURATION
+.PP
+The config is read from the nearest cmdsync.json, or the "cmdsync" key of the nearest package.json, searching up from the current directory (or from \-\-config). Its keys include marker, endMarker, shell, commands, install, include, exclude, syntax, cwd, timeout, env, postUpdate and directives; see the JSON schema shipped as cmdsync.schema.json.
+.PP
+The global config holds "defaults", merged under every repository's own config, and the "repos" that \-\-all, \-\-group and \-\-repo run in. cmdsync \-\-show \-\-resolved prints the merged config, with where each setting came from.
+.SH ENVIRONMENT
+.TP
+\fBCMDSYNC_GLOBAL_CONFIG\fR
+Path of the global config.
+.TP
+\fBXDG_CONFIG_HOME\fR
+The global config is $XDG_CONFIG_HOME/cmdsync/config.json (default ~/.config/cmdsync/config.json).
+.TP
+\fBCMDSYNC_SHELL\fR
+The shell to run commands with, when "shell" is "auto" (the default): otherwise the shell cmdsync was started from, found by walking up the parent processes, then $SHELL, then sh.
+.TP
+\fBVISUAL\fR, \fBEDITOR\fR
+The editor for \-\-edit (default vi).
+.TP
+\fBNO_COLOR\fR
+Turn off colored output.
+.SH FILES
+.TP
+\fIcmdsync.json\fR
+The project config.
+.TP
+\fI~/.config/cmdsync/config.json\fR
+The global config.
+.SH EXIT STATUS
+.TP
+\fB0\fR
+Success (and, with \-\-check or \-\-diff, every region is up to date).
+.TP
+\fB1\fR
+A command failed, a directive is invalid, \-\-check or \-\-diff found an out of date region, or lint found an error.
+.TP
+\fB2\fR
+Usage or config error.
+.SH EXAMPLES
+.PP
+.EX
+cmdsync                      # regenerate every region
+cmdsync status               # show what would change
+cmdsync check                # in CI: exit 1 if anything is out of date
+cmdsync \-i                   # choose which changes to apply
+cmdsync lint                 # check every directive without running it
+cmdsync hook install         # regenerate on every commit
+cmdsync status \-\-group docs  # preview several repositories
+.EE
+.SH SEE ALSO
+.PP
+The README, with every directive, option and config key: https://github.com/ndonfris/cmdsync#readme

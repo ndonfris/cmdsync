@@ -2,7 +2,7 @@
 
 Every diagnostic `my-lsp` reports. This table is generated from `src/error-codes.ts` by `scripts/error-codes.ts`, so don't edit it by hand: run `cmdsync`.
 
-<!-- CMDSYNC region start format=md-table: tsx scripts/error-codes.ts --links -->
+<!-- CMDSYNC start format=md-table: tsx scripts/error-codes.ts --links -->
 | Code                                               | Severity    | Message |
 | -------------------------------------------------- | ----------- | ------- |
 | [`1001`](https://example.com/docs/end)             | Error       | missing closing token |
@@ -18,7 +18,7 @@ Every diagnostic `my-lsp` reports. This table is generated from `src/error-codes
 
 Without deprecated codes, as an html table:
 
-<!-- CMDSYNC region start format=html-table: tsx scripts/error-codes.ts --exclude-deprecated -->
+<!-- CMDSYNC start format=html-table: tsx scripts/error-codes.ts --exclude-deprecated -->
 <table>
   <thead>
     <tr><th>Code</th><th>Severity</th><th>Message</th></tr>

@@ -16,7 +16,7 @@ export interface CommentSyntax {
 
 /** Comment syntax plus the start/end text that delimits a region */
 export interface RegionSyntax extends CommentSyntax {
-  /** `<!-- MARKER region start: command -->` */
+  /** `<!-- MARKER start: command -->` */
   marker: string;
   /** `<!-- MARKER end -->` */
   endMarker: string;

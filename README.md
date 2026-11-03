@@ -5,7 +5,7 @@ Keep generated parts of your files (docs, tables, changelogs, version strings, c
 Put a comment naming a command next to the content it produces:
 
 ````markdown
-<!-- CMDSYNC region start: my-cli --version -->
+<!-- CMDSYNC start: my-cli --version -->
 this line is replaced with the output of `my-cli --version`
 <!-- CMDSYNC end -->
 ````
@@ -29,24 +29,28 @@ The mode says what the output replaces:
 
 | Mode | Replaces | End comment | Files |
 | --- | --- | --- | --- |
-| [`region start`](#region) | every line up to the end comment | `<!-- CMDSYNC end -->` | any |
-| [`region start`, on one line](#inline) | the text between the start and end comment | `<!-- CMDSYNC end -->`, same line | block comments (`<!-- -->`, `/* */`, ...) |
+| [`start` or `region start`](#region) | every line up to the end comment | `<!-- CMDSYNC end -->` | any |
+| [`start`, on one line](#inline) | the text between the start and end comment | `<!-- CMDSYNC end -->`, same line | block comments (`<!-- -->`, `/* */`, ...) |
 | [`line`](#line) | the next line (the output must be one line) | none | any |
 | [`codeblock`](#codeblock) | the body of the next fenced code block | none | markdown, mdx |
 
-`start` marks a directive that has an end comment, so the pair reads `CMDSYNC region start` … `CMDSYNC end`. `start` alone is short for `region start`, so `<!-- CMDSYNC start: cmd -->` is always a region, even before a code block. `region` alone works too. `line` and `codeblock` don't take `start`, because they have no end comment.
+`start` marks a directive that has an end comment, so the pair reads `CMDSYNC start` … `CMDSYNC end`. It's short for `region start`, so `<!-- CMDSYNC start: cmd -->` is always a region, even before a code block; the examples below use the short form. `region start` and `region` alone work too. `line` and `codeblock` don't take `start`, because they have no end comment.
 
-Without a mode, cmdsync infers it: a fenced code block after the directive (in markdown) means `codeblock`, an end comment on the same line means inline, and anything else is a `region`. Naming the mode makes the directive self-explanatory and turns mistakes into clear errors, like "expected a fenced code block" instead of a missing end comment, so prefer it.
+Without a mode, cmdsync infers it: a fenced code block after the directive (in markdown) means `codeblock`, an end comment on the same line means inline, and anything else is a `region`. Naming the mode (or writing `start`) makes the directive self-explanatory and turns mistakes into clear errors, like "expected a fenced code block" instead of a missing end comment, so prefer it.
 
 `format=md-table` or `format=html-table` renders the command's output as a [table](#tables).
 
 ### region
 
-Every line between the start and end comment is replaced. The output is indented to match the start comment, so regions also work inside yaml and nested lists.
+Every line between the start and end comment is replaced. The output is indented to match the start comment, so regions also work inside yaml and nested lists. `start` and `region start` are the same:
 
 ````markdown
 ## Options
-<!-- CMDSYNC region start: my-cli --help -->
+<!-- CMDSYNC start: my-cli --help -->
+<!-- CMDSYNC end -->
+
+## Version
+<!-- CMDSYNC region start: my-cli --version -->
 <!-- CMDSYNC end -->
 ````
 
@@ -54,7 +58,7 @@ Every line between the start and end comment is replaced. The output is indented
 jobs:
   test:
     steps:
-      # CMDSYNC region start: my-cli ci-steps --yaml
+      # CMDSYNC start: my-cli ci-steps --yaml
       - run: generated
       # CMDSYNC end
 ```
@@ -93,7 +97,7 @@ this content is replaced
 A region whose start and end comment are on the same line: the text between them is replaced with the trimmed output. Use it for html elements, badges, or a version in a sentence.
 
 ```html
-<p>Latest release: <span class="version"><!-- CMDSYNC region start: my-cli --version -->1.2.3<!-- CMDSYNC end --></span></p>
+<p>Latest release: <span class="version"><!-- CMDSYNC start: my-cli --version -->1.2.3<!-- CMDSYNC end --></span></p>
 ```
 
 ### Tables
@@ -101,7 +105,7 @@ A region whose start and end comment are on the same line: the text between them
 Use `format=md-table` or `format=html-table` to turn a JSON array printed by the command into a table. The array can hold objects, where the keys become columns in the order they're first seen, or arrays, where the first row is the header.
 
 ````markdown
-<!-- CMDSYNC region start format=md-table: my-cli list-codes --json -->
+<!-- CMDSYNC start format=md-table: my-cli list-codes --json -->
 | code | message |
 | ---- | ------- |
 <!-- CMDSYNC end -->
@@ -113,7 +117,7 @@ $ my-cli list-codes --json
 ```
 
 ````markdown
-<!-- CMDSYNC region start format=md-table: my-cli list-codes --json -->
+<!-- CMDSYNC start format=md-table: my-cli list-codes --json -->
 | code | message |
 | ---- | ------- |
 | 1001 | missing end |
@@ -128,7 +132,7 @@ The markdown table aligns every column but the last and escapes `|`. The html ta
 MDX doesn't allow html comments, so `.mdx` files use JSX comments:
 
 ```mdx
-{/* CMDSYNC region start format=html-table: my-cli list-codes --json */}
+{/* CMDSYNC start format=html-table: my-cli list-codes --json */}
 {/* CMDSYNC end */}
 ```
 
@@ -139,14 +143,14 @@ A changelog section is just a region:
 ```markdown
 # Changelog
 
-<!-- CMDSYNC region start: git-cliff --unreleased --strip all -->
+<!-- CMDSYNC start: git-cliff --unreleased --strip all -->
 <!-- CMDSYNC end -->
 ```
 
 ### Any other file
 
 ```fish
-# CMDSYNC region start: my-cli completions fish
+# CMDSYNC start: my-cli completions fish
 complete -c my-cli ...
 # CMDSYNC end
 ```
@@ -155,7 +159,7 @@ complete -c my-cli ...
 
 The comment syntax is picked from the file name. Line comments like `#` have no closing delimiter, so in those files the directive runs to the end of its line and regions are block-only.
 
-<!-- CMDSYNC region start format=md-table: tsx scripts/syntax-table.ts -->
+<!-- CMDSYNC start format=md-table: tsx scripts/syntax-table.ts -->
 | Comment        | Markdown | Files |
 | -------------- | -------- | ----- |
 | `<!--` … `-->` | yes      | `.md` `.markdown` |
@@ -228,7 +232,7 @@ Usage: cmdsync [options] [paths...]
 Replace comment-delimited regions of any file with the output of the
 command named in the start comment:
 
-  <!-- CMDSYNC region start: my-cli --version -->
+  <!-- CMDSYNC start: my-cli --version -->
   this line is replaced with the output of `my-cli --version`
   <!-- CMDSYNC end -->
 
@@ -266,7 +270,7 @@ Options:
 
 Directives: <!-- CMDSYNC [mode] [start] [format=...]: cmd -->
   region     replace every line up to <!-- CMDSYNC end -->
-             (`region start`, or just `start`; on one line: inline)
+             (`start` is short for `region start`; on one line: inline)
   line       replace the next line (output must be one line)
   codeblock  replace the body of the next fenced code block (markdown)
   (none)     codeblock if a fence follows in markdown, inline if the end
@@ -328,7 +332,7 @@ When both exist in the same directory, `cmdsync.json` wins. Relative paths (`inc
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `marker` | `string` | `"CMDSYNC"` | Starts a directive: `<!-- MARKER region start: command -->` |
+| `marker` | `string` | `"CMDSYNC"` | Starts a directive: `<!-- MARKER start: command -->` |
 | `endMarker` | `string` | `marker + " end"` | End of a region: `<!-- MARKER end -->` |
 | `shell` | `string` | `"sh"` | Shell binary that runs each command as `<shell> -c "<command>"`: `bash`, `fish`, `/usr/bin/zsh`, ... |
 | `commands` | `string[]` | `[]` (anything) | Command binaries directives are allowed to run (see below) |
@@ -584,7 +588,7 @@ A small script imports that module and prints one JSON row per code:
  * Prints every diagnostic code from `src/error-codes.ts` as JSON rows, for
  * cmdsync's `format=md-table` / `format=html-table`:
  *
- *   <!-- CMDSYNC region start format=md-table: tsx scripts/error-codes.ts --links -->
+ *   <!-- CMDSYNC start format=md-table: tsx scripts/error-codes.ts --links -->
  *   <!-- CMDSYNC end -->
  *
  * Importing the source (instead of hand-copying its values into the docs)
@@ -622,13 +626,13 @@ console.log(JSON.stringify(rows, null, 2));
 The docs then hold a region with `format=md-table` (or `format=html-table`, for `.mdx`):
 
 ````markdown
-<!-- CMDSYNC region start format=md-table: tsx scripts/error-codes.ts --links -->
+<!-- CMDSYNC start format=md-table: tsx scripts/error-codes.ts --links -->
 <!-- CMDSYNC end -->
 ````
 
 Running `cmdsync` fills it in:
 
-<!-- CMDSYNC region start format=md-table: tsx examples/diagnostic-codes/scripts/error-codes.ts --links -->
+<!-- CMDSYNC start format=md-table: tsx examples/diagnostic-codes/scripts/error-codes.ts --links -->
 | Code                                               | Severity    | Message |
 | -------------------------------------------------- | ----------- | ------- |
 | [`1001`](https://example.com/docs/end)             | Error       | missing closing token |
@@ -658,7 +662,7 @@ Docs in other repositories (B, C) don't have A's source. Two ways to keep their 
 1. **Ship the data with A.** Add the script's output to A's CLI (e.g. `A info --diagnostics --json`). B and C then only need the released binary, which their `install` config pins to the released version:
 
    ```markdown
-   <!-- CMDSYNC region start format=md-table: A info --diagnostics --json -->
+   <!-- CMDSYNC start format=md-table: A info --diagnostics --json -->
    <!-- CMDSYNC end -->
    ```
 
@@ -672,7 +676,7 @@ Docs in other repositories (B, C) don't have A's source. Two ways to keep their 
    ```
 
    ```markdown
-   <!-- CMDSYNC region start format=md-table: npx tsx ../A/scripts/error-codes.ts --links -->
+   <!-- CMDSYNC start format=md-table: npx tsx ../A/scripts/error-codes.ts --links -->
    <!-- CMDSYNC end -->
    ```
 
@@ -725,7 +729,7 @@ Each downstream repository keeps its own `cmdsync.json`, so it decides what gets
 ```
 
 ````markdown
-Current version: <!-- CMDSYNC region start: A --version -->1.9.0<!-- CMDSYNC end -->
+Current version: <!-- CMDSYNC start: A --version -->1.9.0<!-- CMDSYNC end -->
 
 <!-- CMDSYNC codeblock: A --help -->
 ```text

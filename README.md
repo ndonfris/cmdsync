@@ -33,8 +33,10 @@ The mode says what the output replaces:
 | [`start`, on one line](#inline) | the text between the start and end comment | `<!-- CMDSYNC end -->`, same line | block comments (`<!-- -->`, `/* */`, ...) |
 | [`line`](#line) | the next line (the output must be one line) | none | any |
 | [`codeblock`](#codeblock) | the body of the next fenced code block | none | markdown, mdx |
+| [`console`](#console) | the next fenced code block, with `$ command` and its output | none | markdown, mdx |
+| [`console-pretty`](#console) | the next two fenced code blocks: the command, then its output | none | markdown, mdx |
 
-`start` marks a directive that has an end comment, so the pair reads `CMDSYNC start` … `CMDSYNC end`. It's short for `region start`, so `<!-- CMDSYNC start: cmd -->` is always a region, even before a code block; the examples below use the short form. `region start` and `region` alone work too. `line` and `codeblock` don't take `start`, because they have no end comment.
+`start` marks a directive that has an end comment, so the pair reads `CMDSYNC start` … `CMDSYNC end`. It's short for `region start`, so `<!-- CMDSYNC start: cmd -->` is always a region, even before a code block; the examples below use the short form. `region start` and `region` alone work too. `line`, `codeblock` and the `console` modes don't take `start`, because they have no end comment.
 
 Without a mode, cmdsync infers it: a fenced code block after the directive (in markdown) means `codeblock`, an end comment on the same line means inline, and anything else is a `region`. Naming the mode (or writing `start`) makes the directive self-explanatory and turns mistakes into clear errors, like "expected a fenced code block" instead of a missing end comment, so prefer it.
 
@@ -110,6 +112,33 @@ complete -c my-cli ...
 A created block uses a fence longer than any fence in the output, so output that contains code blocks of its own stays intact. `lang` only applies to `codeblock` directives.
 
 `` ``` `` and `~~~` fences both work, including longer fences (` ```` `) that wrap nested blocks. In markdown files, directives shown inside fenced code or inline code (like the examples in this README) are ignored.
+
+### console
+
+`console` shows the command with its output, the way it looks in a terminal. The directive owns the fenced code block after it, and creates it if there's none:
+
+````markdown
+<!-- CMDSYNC console: my-cli --version -->
+```console
+$ my-cli --version
+1.2.3
+```
+````
+
+`console-pretty` writes two blocks instead: the command, highlighted as `lang` (`sh` by default), then its output as `txt`:
+
+````markdown
+<!-- CMDSYNC console-pretty lang=fish: my-cli env -->
+```fish
+my-cli env
+```
+
+```txt
+MY_CLI_HOME=~/.config/my-cli
+```
+````
+
+Both are markdown/mdx only, and replace the block(s) right after the directive (only blank lines may come before each), so `console-pretty` takes the next two fenced blocks: keep unrelated code blocks out of that spot. `lang=` changes the language (`console lang=shell-session`). They don't take `format=` or `include=`, since the point is showing the real command.
 
 ### inline
 
@@ -353,6 +382,8 @@ Directives: <!-- CMDSYNC [mode] [start] [format=...] [lang=...]: cmd -->
   line       replace the next line (output must be one line)
   codeblock  replace the body of the next fenced code block (markdown)
              (lang=fish sets its language, creating the block if missing)
+  console    the next fenced code block, as `$ cmd` and its output
+  console-pretty  two blocks: cmd (lang=, default sh), then its output (txt)
   (none)     codeblock if a fence follows in markdown, inline if the end
              marker is on the same line, else region
   format=md-table|html-table  render a JSON array printed by cmd as a table

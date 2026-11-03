@@ -9,6 +9,9 @@
  *   codeblock  `<!-- MARKER codeblock: cmd -->` then a fenced code block (markdown only);
  *              `codeblock lang=fish` also sets the fence's language, creating the block if missing
  *   inline     `<!-- MARKER start: cmd -->text<!-- MARKER end -->` on one line
+ *   console    `<!-- MARKER console: cmd -->` then a ```console block: `$ cmd` and its output (markdown only)
+ *   console-pretty  `<!-- MARKER console-pretty lang=fish: cmd -->` then two blocks: the
+ *              command (```fish, default ```sh) and its output (```txt) (markdown only)
  *
  * `include=path#L10-L20` in place of `: cmd` takes the content from a file
  * (relative to the file with the directive) instead of a command.
@@ -20,8 +23,14 @@
 import { type Format, formatOutput, isFormat } from './format.js';
 import type { RegionSyntax } from './syntax.js';
 
-export const MODES = ['region', 'line', 'codeblock'] as const;
+export const MODES = ['region', 'line', 'codeblock', 'console', 'console-pretty'] as const;
 export type Mode = typeof MODES[number];
+
+/** Modes that replace what follows the directive, so they have no end marker */
+const NO_END: readonly Mode[] = ['line', 'codeblock', 'console', 'console-pretty'];
+/** Modes that replace (or create) fenced code blocks, so they take `lang=` */
+const FENCED: readonly Mode[] = ['codeblock', 'console', 'console-pretty'];
+const isConsole = (mode: Mode | undefined) => mode === 'console' || mode === 'console-pretty';
 
 const isMode = (value: string): value is Mode => (MODES as readonly string[]).includes(value);
 
@@ -127,7 +136,7 @@ function parseOptions(raw: string | undefined): Directive['options'] | string {
   }
   if (words[0] === 'start') {
     words.shift();
-    if (options.mode === 'line' || options.mode === 'codeblock') {
+    if (options.mode && NO_END.includes(options.mode)) {
       return `\`${options.mode}\` directives have no end marker, so they don't take \`start\``;
     }
     options.start = true;
@@ -140,7 +149,7 @@ function parseOptions(raw: string | undefined): Directive['options'] | string {
       if (!isFormat(value)) return `unknown format "${value}"`;
       options.format = value;
     } else if (key === 'lang') {
-      if (options.mode !== 'codeblock') return '`lang` only applies to `codeblock` directives';
+      if (!options.mode || !FENCED.includes(options.mode)) return `\`lang\` only applies to ${FENCED.map(m => `\`${m}\``).join(', ')} directives`;
       if (!/^[\w.+#-]+$/.test(value)) return `invalid lang "${value}"`;
       options.lang = value;
     } else if (key === 'include') {
@@ -150,6 +159,9 @@ function parseOptions(raw: string | undefined): Directive['options'] | string {
     } else {
       return `unknown option "${word}"`;
     }
+  }
+  if (isConsole(options.mode) && (options.include || options.format)) {
+    return `\`${options.mode}\` shows the command and its output as is, so it doesn't take \`${options.include ? 'include' : 'format'}=\``;
   }
   return options;
 }
@@ -283,7 +295,7 @@ export function updateRegions(
       const directive: Directive = { line, command, options: typeof options === 'string' ? {} : options };
       const afterStart = match.index + match[0].length - consumed;
       const mode = directive.options.mode;
-      const close = mode === 'line' || mode === 'codeblock' ? null : end.exec(rest.slice(afterStart));
+      const close = mode && NO_END.includes(mode) ? null : end.exec(rest.slice(afterStart));
       if (!close) return { text: rewritten + rest, open: { directive, options }, accounted: accounted + 1 };
       const previous = rest.slice(afterStart, afterStart + close.index);
       const generated = generate(directive, options)?.trim();
@@ -377,8 +389,52 @@ export function updateRegions(
       continue;
     }
 
-    if (mode === 'codeblock' && !syntax.fences) {
-      invalid('`codeblock` mode only works in markdown files (or a `syntax` rule with `"fences": true`)');
+    if (mode && FENCED.includes(mode) && !syntax.fences) {
+      invalid(`\`${mode}\` mode only works in markdown files (or a \`syntax\` rule with \`"fences": true\`)`);
+      continue;
+    }
+
+    // console, console-pretty: the command and its output, in the fenced block(s) after the directive
+    if (isConsole(mode)) {
+      const stdout = generate(directive, options)?.replace(/\s+$/, '');
+      if (stdout === undefined) continue;
+      const { lang } = directive.options;
+      const blocks = mode === 'console'
+        ? [{ lang: lang ?? 'console', body: [`$ ${directive.command}`, ...stdout ? [stdout] : []].join('\n') }]
+        : [{ lang: lang ?? 'sh', body: directive.command }, { lang: 'txt', body: stdout }];
+      // the blocks already there: up to as many as this directive writes, with only blank lines before each
+      const found: [number, number][] = [];
+      let next = i;
+      let unclosed = false;
+      while (found.length < blocks.length) {
+        let at = next;
+        while (at < lines.length && lines[at]!.trim() === '') at++;
+        const fence = at < lines.length && openingFence(lines[at]!);
+        if (!fence) break;
+        const closeAt = closingFence(lines, at, fence[2]!);
+        if (closeAt === -1) {
+          unclosed = true;
+          break;
+        }
+        found.push([at, closeAt]);
+        next = closeAt + 1;
+      }
+      if (unclosed) {
+        invalid('the fenced code block after the directive is never closed');
+        continue;
+      }
+      const prefix = lines[directive.line]!.match(/^\s*/)![0];
+      const rendered = blocks.flatMap(({ lang: info, body }, n) => {
+        const fence = fenceFor(body);
+        return [...n > 0 ? [''] : [], `${prefix}${fence}${info}`, ...body ? [indent(body, prefix)] : [], `${prefix}${fence}`];
+      });
+      // blank lines between the directive and the first block stay as they are
+      const keep = found.length > 0 ? lines.slice(i, found[0]![0]) : [];
+      const last = found.length > 0 ? found.at(-1)![1] : i - 1;
+      const previous = lines.slice(i + keep.length, last + 1).join('\n');
+      output.push(...keep, ...rendered.join('\n').split('\n'));
+      updated(directive, previous !== rendered.join('\n'), mode!, Math.max(last, directive.line));
+      i = last + 1;
       continue;
     }
 

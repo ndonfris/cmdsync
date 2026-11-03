@@ -106,6 +106,8 @@ Directives: <!-- CMDSYNC [mode] [start] [format=...] [lang=...]: cmd -->
   line       replace the next line (output must be one line)
   codeblock  replace the body of the next fenced code block (markdown)
              (lang=fish sets its language, creating the block if missing)
+  console    the next fenced code block, as \`$ cmd\` and its output
+  console-pretty  two blocks: cmd (lang=, default sh), then its output (txt)
   (none)     codeblock if a fence follows in markdown, inline if the end
              marker is on the same line, else region
   format=md-table|html-table  render a JSON array printed by cmd as a table

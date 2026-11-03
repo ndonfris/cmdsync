@@ -57,6 +57,7 @@
     "prepare": "tsc -p tsconfig.json",
     "dev": "tsx src/cli.ts",
     "test": "tsx --test tests/*.test.ts",
+    "test:coverage": "node --experimental-test-coverage --test-coverage-include='src/**' --import tsx --test tests/*.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "docs": "tsx src/cli.ts",
     "docs:check": "tsx src/cli.ts --check",

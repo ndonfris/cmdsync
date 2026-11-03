@@ -52,6 +52,15 @@ A global install (`npm i -g cmdsync`) also installs a man page: `man cmdsync`.
 Or start at the [table of contents](docs/README.md).
 <!-- CMDSYNC end -->
 
+## Contributing
+
+All contributions are welcome: bug reports, fixes, docs, new comment syntaxes, features. Just fork the repository and open a pull request. Found a bug but no fix? [Open an issue](https://github.com/ndonfris/cmdsync/issues), ideally with the directive and the output you expected.
+
+- [Development](docs/development.md): setting up (`yarn install`), running the tests (`yarn test`, or `yarn watch` while you work), and the checks CI runs on every pull request (`yarn verify`, `yarn docs:check`).
+- [Building from source](docs/development.md#building-from-source): linking your checkout as the `cmdsync` on your `PATH`, to try a change in other repositories.
+- [Directives](docs/directives.md), [Configuration](docs/configuration.md) and [CLI](docs/cli.md): the documented behaviour a change should keep, or update in the same pull request.
+- Docs are part of a change: the README and `docs/` regenerate parts of themselves with cmdsync (`yarn docs`), and CI fails a pull request whose docs are out of date.
+
 ## License
 
 [MIT](./LICENSE.md)

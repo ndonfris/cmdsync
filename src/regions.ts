@@ -224,6 +224,42 @@ function markerMentions(text: string, syntax: RegionSyntax): number {
 }
 
 /** Every directive in `content`, skipping fenced code blocks in markdown */
+/** `<!-- MARKER ignore start -->` and `<!-- MARKER ignore end -->`, in the file's comment syntax */
+const ignorePattern = (syntax: RegionSyntax, which: 'start' | 'end') =>
+  new RegExp(`${escapeRegExp(syntax.open)}\\s*${markerPattern(syntax.marker)}\\s+ignore\\s+${which}\\s*${closeOrEol(syntax)}`);
+
+/** Whether `pattern` matches `line` outside of inline code (in markdown) */
+const mentions = (line: string, pattern: RegExp, syntax: RegionSyntax) => {
+  const spans = syntax.fences ? codeSpans(line) : [];
+  const m = pattern.exec(line);
+  return !!m && !spans.some(([a, b]) => m.index >= a && m.index < b);
+};
+
+/**
+ * When line `i` starts an ignored range (`MARKER ignore start`), the index of the line
+ * that ends it (`MARKER ignore end`, which may be the same line), or -1 when nothing ends
+ * it; `undefined` when line `i` isn't an ignore start. Fenced blocks inside the range are
+ * skipped, so an example of `ignore end` in one doesn't end it.
+ */
+export function ignoredRange(lines: string[], i: number, syntax: RegionSyntax): number | undefined {
+  const start = ignorePattern(syntax, 'start');
+  const end = ignorePattern(syntax, 'end');
+  const line = lines[i]!;
+  if (!mentions(line, start, syntax)) return undefined;
+  if (mentions(line.slice(start.exec(line)!.index), end, syntax)) return i;
+  for (let j = i + 1; j < lines.length; j++) {
+    const fence = syntax.fences && openingFence(lines[j]!);
+    if (fence) {
+      const close = closingFence(lines, j, fence[2]!);
+      if (close === -1) return -1;
+      j = close;
+    } else if (mentions(lines[j]!, end, syntax)) {
+      return j;
+    }
+  }
+  return -1;
+}
+
 export function findDirectives(content: string, syntax: RegionSyntax): Directive[] {
   const lines = content.split('\n');
   const found: Directive[] = [];
@@ -232,6 +268,11 @@ export function findDirectives(content: string, syntax: RegionSyntax): Directive
     if (fence) {
       const close = closingFence(lines, i, fence[2]!);
       i = close === -1 ? lines.length : close;
+      continue;
+    }
+    const ignored = ignoredRange(lines, i, syntax);
+    if (ignored !== undefined) {
+      i = ignored === -1 ? lines.length : ignored;
       continue;
     }
     for (const { line, command, options } of lineDirectives(lines[i]!, i, syntax)) {
@@ -403,6 +444,20 @@ export function updateRegions(
       const last = close === -1 ? lines.length - 1 : close;
       output.push(...lines.slice(i, last + 1));
       i = last + 1;
+      continue;
+    }
+
+    // `MARKER ignore start` … `MARKER ignore end`: kept as is, directives and all
+    const ignored = ignoredRange(lines, i, syntax);
+    if (ignored !== undefined) {
+      if (ignored === -1) {
+        const expected = `${syntax.open} ${syntax.marker} ignore end${syntax.close ? ` ${syntax.close}` : ''}`;
+        results.push({ directive: { line: i, command: '', options: {} }, kind: 'invalid', reason: `no \`${expected}\` follows this ignore start` });
+        output.push(...lines.slice(i));
+        break;
+      }
+      output.push(...lines.slice(i, ignored + 1));
+      i = ignored + 1;
       continue;
     }
 

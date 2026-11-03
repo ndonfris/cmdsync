@@ -130,6 +130,8 @@ Directives: <!-- CMDSYNC [mode] [start] [format=...] [lang=...]: cmd -->
   format=md-table|html-table  render a JSON array printed by cmd as a table
   include=path#L10-L20        content from a file (relative to this one)
                               instead of a command; a line range is dedented
+  <!-- CMDSYNC ignore start --> ... <!-- CMDSYNC ignore end -->
+                              leave everything between as is (for examples)
 
 Config is read from the nearest cmdsync.json, or the "cmdsync" key of
 the nearest package.json, over the "defaults" of the global config

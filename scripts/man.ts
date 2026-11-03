@@ -84,6 +84,7 @@ export function manPage(): string {
       paragraph('Without a mode it is inferred: codeblock when a fenced block follows in markdown, inline when the end comment is on the same line, else a region.'),
       item(bold('format=md-table|html-table'), 'Render a JSON array printed by the command as a table.'),
       item(bold('include=path[#L10-L20]'), 'Take the content from a file (relative to the file with the directive) instead of a command; a line range is dedented.'),
+      item(bold('<!-- CMDSYNC ignore start --> ... <!-- CMDSYNC ignore end -->'), 'Leave everything between as is: directives inside are not run (for documentation that shows directives as examples).'),
       item(`${bold('lang=')}${italic('lang')}`, 'The language of the code block (codeblock and console modes).'),
       paragraph('Custom directives from the config\'s "directives" are used like a mode, and take any key=value word for their template or formatter.'),
     ),

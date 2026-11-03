@@ -53,6 +53,9 @@ Render a JSON array printed by the command as a table.
 \fBinclude=path[#L10\-L20]\fR
 Take the content from a file (relative to the file with the directive) instead of a command; a line range is dedented.
 .TP
+\fB<!\-\- CMDSYNC ignore start \-\-> ... <!\-\- CMDSYNC ignore end \-\->\fR
+Leave everything between as is: directives inside are not run (for documentation that shows directives as examples).
+.TP
 \fBlang=\fR\fIlang\fR
 The language of the code block (codeblock and console modes).
 .PP

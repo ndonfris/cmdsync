@@ -29,6 +29,7 @@ Start with [Getting started](getting-started.md), then read whichever guide you 
    - [MDX](directives.md#mdx)
    - [Changelogs](directives.md#changelogs)
    - [Any other file](directives.md#any-other-file)
+   - [Ignoring a range](directives.md#ignoring-a-range)
    - [Comment syntax](directives.md#comment-syntax)
 5. **[Custom directives](custom-directives.md)**: Your own directives: templates, filters and TypeScript formatters
    - [Templates](custom-directives.md#templates)

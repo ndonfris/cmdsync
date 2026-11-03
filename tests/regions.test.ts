@@ -368,3 +368,38 @@ describe('updateRegions: blockquotes', () => {
     assert.equal(updateRegions(input, markdown, ok('a\n\nb')).content, md('<!-- M codeblock: x -->', '> ```txt', '> a', '>', '> b', '> ```'), 'blank lines stay quoted');
   });
 });
+
+describe('updateRegions: ignore ranges', () => {
+  const never = () => assert.fail('nothing in an ignored range runs');
+
+  it('leaves everything between ignore start and ignore end as is', () => {
+    const input = md(
+      '<!-- M ignore start -->',
+      '<!-- M start: rm -rf / -->', 'example', '<!-- M end -->',
+      '<!-- M codeblock include=missing.ts -->',
+      '<!-- M ignore end -->',
+      '<!-- M start: x -->', 'old', '<!-- M end -->',
+    );
+    const { content, results, stray } = updateRegions(input, markdown, cmd => cmd === 'x' ? ok('new')() : never());
+    assert.equal(content, input.replace('old', 'new'));
+    assert.deepEqual(results.map(r => r.directive.command), ['x']);
+    assert.deepEqual(stray, []);
+    assert.deepEqual(findDirectives(input, markdown).map(d => d.command), ['x']);
+  });
+
+  it('works in any comment syntax, on one line, and past fenced examples of `ignore end`', () => {
+    assert.equal(updateRegions(md('# M ignore start', '# M start: y', 'z', '# M end', '# M ignore end'), hash, never).content,
+      md('# M ignore start', '# M start: y', 'z', '# M end', '# M ignore end'));
+    const oneLine = 'a <!-- M ignore start --><!-- M start: y -->z<!-- M end --><!-- M ignore end -->';
+    assert.equal(updateRegions(oneLine, markdown, never).content, oneLine);
+    const fenced = md('<!-- M ignore start -->', '```', '<!-- M ignore end -->', '```', '<!-- M start: y -->', '<!-- M end -->', '<!-- M ignore end -->');
+    assert.equal(updateRegions(fenced, markdown, never).content, fenced);
+  });
+
+  it('reports an ignore start that nothing ends, and a stray ignore end', () => {
+    const { results } = updateRegions(md('x', '<!-- M ignore start -->', '<!-- M start: y -->', '<!-- M end -->'), markdown, never);
+    assert.match(results[0]?.kind === 'invalid' ? results[0].reason : '', /no `<!-- M ignore end -->` follows this ignore start/);
+    assert.equal(results[0]?.directive.line, 1);
+    assert.deepEqual(updateRegions(md('a', '<!-- M ignore end -->'), markdown, never, { lint: true }).stray, [1]);
+  });
+});

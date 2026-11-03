@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { CONFIG_FILE, DEFAULT_CONFIG, PACKAGE_JSON_KEY, type UserConfig, defaultEndMarker, findConfig, resolveConfig, validateConfig } from './config.ts';
 import { collectFiles, syntaxResolver } from './index.ts';
 import { LEGACY_FILES, LEGACY_PACKAGE_JSON_KEY, SCHEMA_URL } from './init.ts';
-import { closingFence, codeSpans, openingFence } from './regions.ts';
+import { closingFence, codeSpans, ignoredRange, openingFence } from './regions.ts';
 import type { CommentSyntax } from './syntax.ts';
 
 /** `update-codeblocks`'s default marker */
@@ -75,6 +75,12 @@ export function migrateDirectives(content: string, syntax: CommentSyntax, migrat
     if (fence) {
       const closeAt = closingFence(lines, i, fence[2]!);
       i = closeAt === -1 ? lines.length : closeAt;
+      continue;
+    }
+    // an ignored range (`MARKER ignore start` … `MARKER ignore end`) stays as written
+    const ignored = ignoredRange(lines, i, { ...syntax, marker: migration.marker, endMarker: migration.endMarker });
+    if (ignored !== undefined) {
+      i = ignored === -1 ? lines.length : ignored;
       continue;
     }
     const line = lines[i]!;

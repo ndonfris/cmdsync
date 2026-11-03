@@ -200,6 +200,21 @@ complete -c my-cli ...
 # CMDSYNC end
 ```
 
+## Ignoring a range
+
+Directives between `<!-- CMDSYNC ignore start -->` and `<!-- CMDSYNC ignore end -->` aren't run, and the text between them is left exactly as it is. Use it for documentation that shows directives as examples, outside of a fenced code block:
+
+````markdown
+<!-- CMDSYNC ignore start -->
+Write this, and run `cmdsync`:
+
+<!-- CMDSYNC start: my-cli --version -->
+<!-- CMDSYNC end -->
+<!-- CMDSYNC ignore end -->
+````
+
+It uses the file's comment syntax (`# CMDSYNC ignore start` in a shell script) and your `marker`. Examples inside fenced code blocks and inline code are already ignored in markdown, so a fenced example of `ignore end` doesn't end the range. An `ignore start` that nothing ends is an error, and `cmdsync lint` reports an `ignore end` without a start as a stray marker.
+
 ## Comment syntax
 
 The comment syntax is picked from the file name. Line comments like `#` have no closing delimiter, so in those files the directive runs to the end of its line and regions are block-only.

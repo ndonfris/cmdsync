@@ -73,9 +73,12 @@ function footer(path: string): string {
 function toc(): string {
   return DOCS.map(({ file, description }, i) => {
     const sections = prose(file).filter(l => l.startsWith('## ')).map(l => l.slice(3));
+    // a nested list must be indented as far as the item's text: 3 spaces under `9. `, 4 under `10. `
+    const marker = `${i + 1}. `;
+    const indent = ' '.repeat(marker.length);
     return [
-      `${i + 1}. **[${title(file)}](${file})**: ${description}`,
-      ...sections.map(s => `   - [${s}](${file}#${anchor(s)})`),
+      `${marker}**[${title(file)}](${file})**: ${description}`,
+      ...sections.map(s => `${indent}- [${s}](${file}#${anchor(s)})`),
     ].join('\n');
   }).join('\n');
 }

@@ -126,7 +126,7 @@ export function manPage(): string {
       ]),
     ),
     section('SEE ALSO',
-      paragraph('The README, with every directive, option and config key: https://github.com/ndonfris/cmdsync#readme'),
+      paragraph('The full documentation, with every directive, option and config key: https://github.com/ndonfris/cmdsync/tree/master/docs'),
     ),
     '',
   ].join('\n');

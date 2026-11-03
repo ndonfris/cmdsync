@@ -80,5 +80,6 @@ jobs:
           if [ "$DRY_RUN" = "true" ]; then
             npm publish --dry-run --access public
           else
-            npm publish --access public
+            # --provenance links the version on npmjs.com to this commit and run (needs a public repository)
+            npm publish --provenance --access public
           fi

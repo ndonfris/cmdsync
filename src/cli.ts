@@ -2,6 +2,7 @@
 import { spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { createInterface } from 'node:readline';
 import { parseArgs } from 'node:util';
 import { PACKAGE_JSON_KEY, type UserConfig, loadConfigFile, locateConfig, resolveConfig } from './config.js';
 import { completionScript } from './completions.js';
@@ -11,7 +12,7 @@ import { initConfig, initGlobal, removeRepo } from './init.js';
 import { planMigration } from './migrate.js';
 import {
   type FileResult, type InstallEvent, type RegionResult,
-  directiveSource, displayPath, loadFormatters, missingBinaries, run, runPostUpdate, unifiedDiff,
+  changesOf, directiveSource, displayPath, loadFormatters, missingBinaries, run, runPostUpdate, unifiedDiff,
 } from './index.js';
 import { PARSE_OPTIONS, SHELLS, type Shell } from './options.js';
 
@@ -76,6 +77,8 @@ Options:
                            it when the editor exits
       --check              Don't write; exit 1 if any region is out of date
   -n, --dry-run            Don't write; report what would change
+  -i, --interactive        Show each change and ask whether to apply it
+                           (y/n, a/d: all or none left in the file, q: quit)
   -d, --diff               Don't write; print a unified diff of what would
                            change, and exit 1 if anything is out of date
       --staged             Write, then \`git add\` the files that changed; refuses
@@ -268,6 +271,68 @@ function showOrEdit(values: Values, positionals: string[], subcommand: string | 
     if (!values.quiet) console.error(`(${file}${file.endsWith('package.json') ? `#${PACKAGE_JSON_KEY}` : ''})`);
   }
   return 0;
+}
+
+/** Answers for `--interactive`, one line at a time, from stdin (a terminal or a pipe); undefined at the end of input */
+let answers: AsyncIterator<string> | undefined;
+async function ask(prompt: string): Promise<string | undefined> {
+  answers ??= createInterface({ input: process.stdin, terminal: false })[Symbol.asyncIterator]();
+  process.stdout.write(prompt);
+  const { value, done } = await answers.next();
+  if (done) process.stdout.write('\n');
+  return done ? undefined : String(value).trim().toLowerCase();
+}
+
+const INTERACTIVE_HELP = `\
+y - apply this change
+n - skip this change
+a - apply this change and every later one in the file
+d - skip this change and every later one in the file
+q - quit: skip this change and every one after it
+? - show this help`;
+
+/**
+ * `--interactive`: walk every change, like `git add -p`, and return each file's content
+ * with only the accepted changes (undefined for files where none were).
+ */
+async function chooseChanges(results: FileResult[], root: string, color: boolean): Promise<Map<string, string | undefined>> {
+  const chosen = new Map<string, string | undefined>();
+  let quit = false;
+  for (const { file, original, content, changed, regions } of results) {
+    if (!changed) continue;
+    const path = displayPath(file, root);
+    const { changes, apply } = changesOf(original, content, { color });
+    const accepted: boolean[] = [];
+    let rest: boolean | undefined = quit ? false : undefined;
+    for (const [n, change] of changes.entries()) {
+      if (rest !== undefined) {
+        accepted.push(rest);
+        continue;
+      }
+      const region = regions.find(r => r.kind === 'updated' && change.line >= r.directive.line + 1 && change.line <= r.end + 1);
+      console.log(`\n${path}:${change.line}${region ? `  ${directiveSource(region.directive)}` : ''}  (${n + 1}/${changes.length})`);
+      console.log(change.hunk);
+      for (;;) {
+        const answer = await ask('Apply this change [y,n,a,d,q,?]? ');
+        if (answer === undefined || answer === 'q') {
+          quit = true;
+          rest = false;
+          accepted.push(false);
+        } else if (answer === 'y' || answer === 'n') {
+          accepted.push(answer === 'y');
+        } else if (answer === 'a' || answer === 'd') {
+          rest = answer === 'a';
+          accepted.push(rest);
+        } else {
+          console.log(INTERACTIVE_HELP);
+          continue;
+        }
+        break;
+      }
+    }
+    chosen.set(file, accepted.some(Boolean) ? apply(accepted) : undefined);
+  }
+  return chosen;
 }
 
 const RUN_COMMANDS = ['update', 'status', 'check', 'lint'] as const;
@@ -486,7 +551,7 @@ async function runIn(config: ReturnType<typeof resolveConfig>, values: Values, p
   const dryRun = values['dry-run'] || status;
   const diff = values.diff || status;
   if (lint) {
-    const conflicting = (['check', 'dry-run', 'diff', 'staged', 'install', 'post-update-cmds'] as const).filter(o => values[o] !== undefined && values[o] !== false);
+    const conflicting = (['check', 'dry-run', 'diff', 'staged', 'install', 'post-update-cmds', 'interactive'] as const).filter(o => values[o] !== undefined && values[o] !== false);
     if (conflicting.length > 0) throw new Error(`lint never runs commands or writes, so it doesn't take --${conflicting.join(', --')}`);
     log(`config: ${config.source ?? '(defaults)'}\n`);
     return lintReport(run(config, { paths: positionals, lint: true, formatters }), config, values.quiet);
@@ -494,9 +559,13 @@ async function runIn(config: ReturnType<typeof resolveConfig>, values: Values, p
   if (values.staged && (check || dryRun || diff)) {
     throw new Error('--staged cannot be combined with --check, --dry-run or --diff');
   }
-  // --staged writes (and stages) files itself, once it knows they're safe to stage
-  const write = !check && !dryRun && !diff && !values.staged;
-  if (values['post-update-cmds'] && !write && !values.staged) {
+  const interactive = values.interactive;
+  if (interactive && (check || dryRun || diff || values.staged)) {
+    throw new Error('--interactive asks which changes to write, so it can\'t be combined with check, status, --dry-run, --diff or --staged');
+  }
+  // --staged writes (and stages) files itself, once it knows they're safe to stage; --interactive once you've chosen
+  const write = !check && !dryRun && !diff && !values.staged && !interactive;
+  if (values['post-update-cmds'] && !write && !values.staged && !interactive) {
     throw new Error('--post-update-cmds only applies to an update that writes files');
   }
   const color = process.stdout.isTTY && !process.env.NO_COLOR;
@@ -536,7 +605,7 @@ async function runIn(config: ReturnType<typeof resolveConfig>, values: Values, p
       const at = `${path}:${region.directive.line + 1}`;
       switch (region.kind) {
         case 'updated':
-          log(`    ${region.changed ? (written ? 'updated' : 'outdated') : 'ok'}  ${at}  ${directiveSource(region.directive)}`);
+          log(`    ${region.changed ? (written ? 'updated' : interactive ? 'changed' : 'outdated') : 'ok'}  ${at}  ${directiveSource(region.directive)}`);
           if (region.changed && (check || diff) && isGithubActions) {
             annotate('error', path, region.directive.line + 1, `Region is out of date, run \`cmdsync\` to regenerate it (${directiveSource(region.directive)})`);
           }
@@ -575,11 +644,24 @@ async function runIn(config: ReturnType<typeof resolveConfig>, values: Values, p
     ...values.verbose && { onScan, onCommand },
   });
 
+  let applied: string[] = [];
+  if (interactive) {
+    const chosen = await chooseChanges(results, config.root, color);
+    for (const [file, content] of chosen) {
+      if (content === undefined) continue;
+      writeFileSync(file, content, 'utf-8');
+      applied.push(file);
+    }
+    const skipped = [...chosen.values()].filter(c => c === undefined).length;
+    log(`\n${applied.length} file(s) written${skipped ? `, ${skipped} left as they were` : ''}`);
+    applied = applied.sort();
+  }
+
   // postUpdate commands run after files are written, and (with --staged) before they're staged,
   // so whatever they change in those files is committed too
-  const written = git ? toStage : results.filter(r => r.written).map(r => r.file);
+  const written = git ? toStage : interactive ? applied : results.filter(r => r.written).map(r => r.file);
   const postUpdate = values['post-update-cmds'];
-  const runPost = (write || !!git) && config.postUpdate.length > 0 && postUpdate !== false && (postUpdate || written.length > 0);
+  const runPost = (write || !!git || interactive) && config.postUpdate.length > 0 && postUpdate !== false && (postUpdate || written.length > 0);
   let postFailed = false;
   if (runPost) {
     log('');
@@ -603,7 +685,7 @@ async function runIn(config: ReturnType<typeof resolveConfig>, values: Values, p
 
   const summary = [
     `${results.length} file(s), ${regions.length} directive(s)`,
-    `${changedRegions} region(s) ${write ? 'updated' : 'out of date'}`,
+    `${changedRegions} region(s) ${write ? 'updated' : interactive ? 'changed' : 'out of date'}`,
     ...git ? [`${toStage.length} file(s) staged`] : [],
     ...failed ? [`${failed} failed`] : [],
   ].join(', ');

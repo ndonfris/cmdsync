@@ -4,6 +4,7 @@
  * command's output.
  *
  *   region     `<!-- MARKER region start: cmd -->` ... lines ... `<!-- MARKER end -->`
+ *              (`MARKER start:` is short for `MARKER region start:`)
  *   line       `<!-- MARKER line: cmd -->` then the single line it replaces
  *   codeblock  `<!-- MARKER codeblock: cmd -->` then a fenced code block (markdown only)
  *   inline     `<!-- MARKER region start: cmd -->text<!-- MARKER end -->` on one line
@@ -72,7 +73,7 @@ const closingFence = (lines: string[], open: number, fence: string) => {
 const codeSpans = (line: string) =>
   [...line.matchAll(/(?<!`)(`+)(?!`).*?(?<!`)\1(?!`)/g)].map(m => [m.index, m.index + m[0].length] as const);
 
-/** `region start format=md-table` → `{ mode: 'region', start: true, format: 'md-table' }`, or an error message */
+/** `region start format=md-table` (or `start format=md-table`) → `{ mode: 'region', start: true, format: 'md-table' }`, or an error message */
 function parseOptions(raw: string | undefined): Directive['options'] | string {
   const options: Directive['options'] = {};
   const words = raw?.split(/\s+/).filter(Boolean) ?? [];
@@ -87,6 +88,8 @@ function parseOptions(raw: string | undefined): Directive['options'] | string {
       return `\`${options.mode}\` directives have no end marker, so they don't take \`start\``;
     }
     options.start = true;
+    // `start` alone is short for `region start`
+    options.mode ??= 'region';
   }
   for (const word of words) {
     const [key, value = ''] = word.split('=');

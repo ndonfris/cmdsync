@@ -80,6 +80,22 @@ describe('cmdsync --show / --edit', () => {
     assert.equal(cmdsync(dir, ['--edit']).status, 2, 'an editor that fails');
   });
 
+  it('--resolved shows the merged config, marking where each value is from', () => {
+    const dir = temp();
+    writeFileSync(join(dir, 'global.json'), JSON.stringify({ defaults: { shell: 'fish', env: { A: 'global', B: 'global' } } }));
+    writeFileSync(join(dir, 'cmdsync.json'), JSON.stringify({ env: { A: 'local' } }));
+    const { status, stdout, stderr } = cmdsync(dir, ['--show', '--resolved', '-m', 'DOCS'], '', { CMDSYNC_GLOBAL_CONFIG: join(dir, 'global.json') });
+    assert.equal(status, 0, stderr);
+    assert.match(stdout, /^ {2}"marker": "DOCS", {2}\/\/ flag$/m);
+    assert.match(stdout, /^ {2}"shell": "fish", {2}\/\/ global$/m);
+    assert.match(stdout, /^ {4}"A": "local", {2}\/\/ config$/m);
+    assert.match(stdout, /^ {4}"B": "global" {2}\/\/ global$/m);
+    assert.match(stdout, /^ {2}"include": \["\*\*\/\*\.md","\*\*\/\*\.mdx"\], {2}\/\/ default$/m);
+    assert.match(stderr, /global: .*global\.json/);
+    // without any config file, it's the defaults
+    assert.equal(cmdsync(temp(), ['--resolved']).status, 0);
+  });
+
   it('needs a config, and takes no commands or paths', () => {
     assert.match(cmdsync(temp(), ['--show']).stderr, /no cmdsync\.json or package\.json "cmdsync" key found/);
     const dir = temp();

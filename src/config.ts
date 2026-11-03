@@ -253,30 +253,73 @@ export function loadConfigFile(path: string): { config: UserConfig; root: string
   return { config: validateConfig(json, file), root: dirname(file), source: file };
 }
 
+/** Where a resolved setting came from */
+export type ConfigLayer = 'default' | 'global' | 'config' | 'flag';
+
+/** Keys whose entries merge one by one across layers, instead of being replaced */
+const MERGED_KEYS = ['install', 'env', 'directives'] as const;
+
+type ResolveOptions = { cwd?: string; configPath?: string; overrides?: UserConfig; defaults?: UserConfig; };
+
 /**
  * Built-in defaults < `defaults` (the global config's) < the config file < `overrides` (CLI flags).
  * `install`, `env` and `directives` merge key by key; every other key is replaced.
  */
-export function resolveConfig(
-  options: { cwd?: string; configPath?: string; overrides?: UserConfig; defaults?: UserConfig; } = {},
-): ResolvedConfig {
+export function resolveConfig(options: ResolveOptions = {}): ResolvedConfig {
+  return resolveConfigSources(options).config;
+}
+
+/**
+ * `resolveConfig`, plus which layer each setting came from: a layer per key, or per
+ * entry for `install`, `env` and `directives` (`cmdsync --show --resolved`).
+ */
+export function resolveConfigSources(options: ResolveOptions = {}): {
+  config: ResolvedConfig;
+  sources: Record<string, ConfigLayer | Record<string, ConfigLayer>>;
+} {
   const cwd = resolve(options.cwd ?? process.cwd());
   const found = options.configPath ? loadConfigFile(options.configPath) : findConfig(cwd);
   const root = found?.root ?? cwd;
-  const layers = [DEFAULT_CONFIG, options.defaults ?? {}, found?.config ?? {}, options.overrides ?? {}];
+  const layers: [ConfigLayer, UserConfig][] = [
+    ['default', DEFAULT_CONFIG],
+    ['global', options.defaults ?? {}],
+    ['config', found?.config ?? {}],
+    ['flag', options.overrides ?? {}],
+  ];
+  const values = layers.map(([, l]) => l);
   const merged: UserConfig = {
-    ...Object.assign({}, ...layers),
-    install: Object.assign({}, ...layers.map(l => l.install)),
-    env: Object.assign({}, ...layers.map(l => l.env)),
-    directives: Object.assign({}, ...layers.map(l => l.directives)),
+    ...Object.assign({}, ...values),
+    install: Object.assign({}, ...values.map(l => l.install)),
+    env: Object.assign({}, ...values.map(l => l.env)),
+    directives: Object.assign({}, ...values.map(l => l.directives)),
   };
+
+  const sources: Record<string, ConfigLayer | Record<string, ConfigLayer>> = {};
+  for (const [layer, config] of layers) {
+    for (const [key, value] of Object.entries(config)) {
+      if (value === undefined) continue;
+      if ((MERGED_KEYS as readonly string[]).includes(key)) {
+        const entries = (sources[key] ??= {}) as Record<string, ConfigLayer>;
+        for (const name of Object.keys(value as object)) entries[name] = layer;
+      } else {
+        sources[key] = layer;
+      }
+    }
+  }
+  // derived from other settings when not set
+  sources.endMarker ??= sources.marker as ConfigLayer;
+  sources.comment ??= 'default';
+
   return {
-    ...DEFAULT_CONFIG,
-    ...merged,
-    endMarker: merged.endMarker ?? defaultEndMarker(merged.marker ?? DEFAULT_CONFIG.marker),
-    comment: merged.comment ?? null,
-    cwd: resolve(root, merged.cwd ?? DEFAULT_CONFIG.cwd),
-    root,
-    source: found?.source ?? null,
+    config: {
+      ...DEFAULT_CONFIG,
+      ...merged,
+      endMarker: merged.endMarker ?? defaultEndMarker(merged.marker ?? DEFAULT_CONFIG.marker),
+      comment: merged.comment ?? null,
+      cwd: resolve(root, merged.cwd ?? DEFAULT_CONFIG.cwd),
+      root,
+      source: found?.source ?? null,
+    },
+    sources,
   };
 }

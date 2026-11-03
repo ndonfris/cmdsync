@@ -14,6 +14,7 @@ export interface CliOption {
 export const OPTIONS: CliOption[] = [
   { long: 'config', short: 'c', value: 'file', description: 'Config file (cmdsync.json or package.json)' },
   { long: 'show', description: 'Print the config (--config, or the nearest one) and exit' },
+  { long: 'resolved', description: 'Print the merged config, with where each setting comes from' },
   { long: 'edit', description: 'Open the config in $VISUAL / $EDITOR, and check it afterwards' },
   { long: 'check', description: "Don't write; exit 1 if any region is out of date" },
   { long: 'dry-run', short: 'n', description: "Don't write; report what would change" },
@@ -63,6 +64,7 @@ export const PARSE_OPTIONS = {
   config: { type: 'string', short: 'c' },
   show: { type: 'boolean', default: false },
   edit: { type: 'boolean', default: false },
+  resolved: { type: 'boolean', default: false },
   check: { type: 'boolean', default: false },
   'dry-run': { type: 'boolean', short: 'n', default: false },
   interactive: { type: 'boolean', short: 'i', default: false },

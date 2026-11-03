@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
-import { resolveConfig } from '../src/config.js';
+import { resolveConfig, resolveConfigSources } from '../src/config.js';
 import { contractHome, globalConfigPath, loadGlobalConfig, selectRepos, validateGlobalConfig } from '../src/global.js';
 import { addRepo, initConfig, initGlobal, removeRepo } from '../src/init.js';
 
@@ -52,6 +52,25 @@ describe('global defaults', () => {
     assert.equal(config.timeout, 5);
     assert.deepEqual(config.env, { A: 'repo', B: 'global', C: 'cli' });
     assert.deepEqual(config.install, { x: 'repo-x', y: 'global-y' });
+  });
+});
+
+describe('resolveConfigSources', () => {
+  it('says which layer each setting, and each install/env/directives entry, came from', () => {
+    const dir = temp();
+    writeFileSync(join(dir, 'cmdsync.json'), JSON.stringify({ commands: ['my-cli'], env: { A: 'repo' } }));
+    const { config, sources } = resolveConfigSources({
+      cwd: dir,
+      defaults: { shell: 'fish', commands: ['fish'], env: { A: 'global', B: 'global' } },
+      overrides: { marker: 'DOCS' },
+    });
+    assert.deepEqual(config.commands, ['my-cli']);
+    assert.equal(sources.shell, 'global');
+    assert.equal(sources.commands, 'config');
+    assert.equal(sources.marker, 'flag');
+    assert.equal(sources.endMarker, 'flag', 'derived from the marker');
+    assert.equal(sources.include, 'default');
+    assert.deepEqual(sources.env, { A: 'config', B: 'global' });
   });
 });
 

@@ -4,7 +4,9 @@ import { appendFileSync, existsSync, readFileSync, realpathSync, rmSync, writeFi
 import { resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { parseArgs } from 'node:util';
-import { PACKAGE_JSON_KEY, type UserConfig, loadConfigFile, locateConfig, resolveConfig } from './config.js';
+import {
+  type ConfigLayer, PACKAGE_JSON_KEY, type UserConfig, loadConfigFile, locateConfig, resolveConfig, resolveConfigSources,
+} from './config.js';
 import { completionScript } from './completions.js';
 import { gitRoot, gitStatus, installHook, stage } from './git.js';
 import { contractHome, expandHome, globalConfigPath, loadGlobalConfig, repoName, saveGlobalConfig, selectRepos } from './global.js';
@@ -75,6 +77,9 @@ Options:
                            exit; for package.json, its "cmdsync" key
       --edit               Open the config in $VISUAL / $EDITOR / vi, and check
                            it when the editor exits
+      --resolved           With --show (or alone): print the config a run would
+                           use, merged from the defaults, the global config, the
+                           config file and flags, marking where each value is from
       --check              Don't write; exit 1 if any region is out of date
   -n, --dry-run            Don't write; report what would change
   -i, --interactive        Show each change and ask whether to apply it
@@ -239,8 +244,10 @@ function lintReport(results: FileResult[], config: ReturnType<typeof resolveConf
  * `--show` / `--edit`: print the config (just the `"cmdsync"` key of a package.json),
  * or open it in $VISUAL / $EDITOR / vi and check it once the editor exits.
  */
-function showOrEdit(values: Values, positionals: string[], subcommand: string | undefined): number {
+function showOrEdit(values: Values, positionals: string[], subcommand: string | undefined, overrides: UserConfig): number {
   if (subcommand || positionals.length > 0) throw new Error('--show and --edit only work with --config <file> (or the nearest config), not with commands or paths');
+  // the merged config doesn't need a config file: without one it's the defaults (and the global config's)
+  if (values.resolved && !values.edit) return showResolved(values, overrides);
   const file = values.config ? resolve(values.config) : locateConfig(process.cwd());
   if (!file) throw new Error('no cmdsync.json or package.json "cmdsync" key found here or above: create one with `cmdsync init`, or pass --config <file>');
   if (!existsSync(file)) throw new Error(`Config file does not exist: ${file}`);
@@ -259,6 +266,7 @@ function showOrEdit(values: Values, positionals: string[], subcommand: string | 
     }
     if (!values.show) console.error(`${file} is valid`);
   }
+  if (values.resolved) return showResolved(values, overrides);
   if (values.show) {
     const text = readFileSync(file, 'utf-8');
     if (file.endsWith('package.json')) {
@@ -333,6 +341,51 @@ async function chooseChanges(results: FileResult[], root: string, color: boolean
     chosen.set(file, accepted.some(Boolean) ? apply(accepted) : undefined);
   }
   return chosen;
+}
+
+/**
+ * `--show --resolved`: the config a run would use, after merging the built-in defaults,
+ * the global config's `defaults`, the config file and flags, with where each setting came from.
+ */
+function showResolved(values: Values, overrides: UserConfig): number {
+  const globalFile = globalConfigPath();
+  const global = loadGlobalConfig(globalFile);
+  const { config, sources } = resolveConfigSources({ configPath: values.config, overrides, defaults: global?.defaults });
+  const dim = (text: string) => process.stdout.isTTY && !process.env.NO_COLOR ? `\x1b[2m${text}\x1b[0m` : text;
+  const label = (layer: ConfigLayer) => dim(`// ${layer}`);
+
+  const { source: _, root, ...rest } = config;
+  const keys = Object.keys(rest) as (keyof typeof rest)[];
+  const lines = ['{'];
+  keys.forEach((key, i) => {
+    const comma = i < keys.length - 1 ? ',' : '';
+    const value = rest[key];
+    const source = sources[key];
+    if (typeof source === 'object' && value && typeof value === 'object' && !Array.isArray(value)) {
+      const entries = Object.entries(value);
+      if (entries.length === 0) {
+        lines.push(`  ${JSON.stringify(key)}: {}${comma}  ${label('default')}`);
+        return;
+      }
+      lines.push(`  ${JSON.stringify(key)}: {`);
+      entries.forEach(([name, entry], j) => {
+        lines.push(`    ${JSON.stringify(name)}: ${JSON.stringify(entry)}${j < entries.length - 1 ? ',' : ''}  ${label(source[name] ?? 'default')}`);
+      });
+      lines.push(`  }${comma}`);
+      return;
+    }
+    // cwd is resolved against the config's directory, so it's shown absolute
+    const layer = key === 'cwd' ? (sources.cwd as ConfigLayer | undefined) ?? 'default' : (source as ConfigLayer | undefined) ?? 'default';
+    lines.push(`  ${JSON.stringify(key)}: ${JSON.stringify(value)}${comma}  ${label(layer)}`);
+  });
+  lines.push('}');
+  console.log(lines.join('\n'));
+  if (!values.quiet) {
+    console.error(dim(`config: ${config.source ?? 'none, so `root` is the current directory'}  (root: ${root})`));
+    console.error(dim(`global: ${global ? globalFile : `none (${globalFile})`}`));
+    console.error(dim('flag:   command line flags'));
+  }
+  return 0;
 }
 
 const RUN_COMMANDS = ['update', 'status', 'check', 'lint'] as const;
@@ -489,7 +542,6 @@ async function main(argv: string[]): Promise<number> {
     const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf-8'));
     return console.log(pkg.version), 0;
   }
-  if (values.show || values.edit) return showOrEdit(values, positionals, subcommand);
 
   const overrides: UserConfig = {
     ...values.marker && { marker: values.marker },
@@ -498,6 +550,7 @@ async function main(argv: string[]): Promise<number> {
     ...values.shell && { shell: values.shell },
     ...values.command && { commands: values.command },
   };
+  if (values.show || values.edit || values.resolved) return showOrEdit(values, positionals, subcommand, overrides);
   const global = loadGlobalConfig();
   if (global?.defaults && Object.keys(global.defaults).length > 0 && !values.quiet) console.log(`global: ${globalConfigPath()}`);
   const multi = values.all || !!values.group?.length || !!values.repo?.length;

@@ -595,6 +595,8 @@ It's quick and has no side effects, so it suits an editor task or the first step
 
 `cmdsync completions <shell>` prints a completion script for `bash`, `zsh`, `fish` or `nu`. The scripts are generated from the same option table the CLI parses, so they always match the installed version. POSIX `sh` has no completion system, so it isn't supported.
 
+`cmdsync <TAB>` lists only the subcommands, with their descriptions where the shell shows them. Files and directories are offered once the word being completed looks like a path: it contains a `/`, or starts with `.` or `~` (`cmdsync ./<TAB>`, `cmdsync docs/<TAB>`, `cmdsync ~/<TAB>`, `cmdsync .git<TAB>`). The same goes for the paths after `update`, `status`, `check` and `lint`. Options that take a file, like `--config`, always complete files, and `-<TAB>` lists the options.
+
 ```fish
 # bash: in ~/.bashrc
 eval "$(cmdsync completions bash)"

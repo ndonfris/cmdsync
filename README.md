@@ -1,6 +1,6 @@
 # cmdsync
 
-[![npm](https://img.shields.io/npm/v/cmdsync?logo=npm&color=cb3837)](https://www.npmjs.com/package/cmdsync) [![ci](https://img.shields.io/github/actions/workflow/status/ndonfris/cmdsync/ci.yml?branch=master&label=ci&logo=github)](https://github.com/ndonfris/cmdsync/actions/workflows/ci.yml) <!-- CMDSYNC start: node -p "'[![node](https://img.shields.io/badge/node-' + encodeURIComponent(require('./package.json').engines.node) + '-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org)'" -->[![node](https://img.shields.io/badge/node-%3E%3D22.18.0-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org)<!-- CMDSYNC end --> [![license](https://img.shields.io/badge/license-MIT-dfb317)](./LICENSE.md) [![dependencies](https://img.shields.io/badge/dependencies-0-8957e5)](./package.json) [![types](https://img.shields.io/badge/types-included-3178c6?logo=typescript&logoColor=white)](./src/index.ts)
+[![npm](https://img.shields.io/npm/v/cmdsync?logo=npm&color=a8322d)](https://www.npmjs.com/package/cmdsync) [![ci](https://img.shields.io/github/actions/workflow/status/ndonfris/cmdsync/ci.yml?branch=master&label=ci&logo=github)](https://github.com/ndonfris/cmdsync/actions/workflows/ci.yml) <!-- CMDSYNC start: node -p "'[![node](https://img.shields.io/badge/node-' + encodeURIComponent(require('./package.json').engines.node) + '-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org)'" -->[![node](https://img.shields.io/badge/node-%3E%3D22.18.0-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org)<!-- CMDSYNC end --> [![license](https://img.shields.io/badge/license-MIT-6f9fd8)](./LICENSE.md) [![dependencies](https://img.shields.io/badge/dependencies-0-8957e5)](./package.json) [![types](https://img.shields.io/badge/types-included-3178c6?logo=typescript&logoColor=white)](./src/index.ts)
 
 Keep generated parts of your files (docs, tables, changelogs, version strings, config snippets) in sync with the output of real commands.
 
@@ -21,15 +21,28 @@ Running `cmdsync` executes each command and replaces **only the content the comm
 
 ## Install
 
+### Local install
+
 ```fish
+# with npm
+npm install -D cmdsync
+
+# with yarn
 yarn add -D cmdsync
+
+# with pnpm
+pnpm add -D cmdsync
+
+# with bun
+bun add -d cmdsync
+
 # or run it without installing
 npx cmdsync --help
 ```
 
 Requires Node.js `>=22.18`.
 
-A global install (`npm i -g cmdsync`) also installs a man page: `man cmdsync`.
+<!-- section describing global install -->
 
 `cmdsync init` writes a starter `cmdsync.json` (or, with `--package-json`, a `"cmdsync"` key in `package.json`) and prints the next steps. It leaves an existing config alone, and points at [`cmdsync migrate`](docs/migrating.md) when it finds an `update-codeblocks` one.
 

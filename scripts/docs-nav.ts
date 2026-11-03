@@ -72,7 +72,8 @@ function footer(path: string): string {
 
 function toc(): string {
   return DOCS.map(({ file, description }, i) => {
-    const sections = prose(file).filter(l => l.startsWith('## ')).map(l => l.slice(3));
+    // a guide's "Next" section only points at other guides, which the contents already list
+    const sections = prose(file).filter(l => l.startsWith('## ')).map(l => l.slice(3)).filter(s => s !== 'Next');
     // a nested list must be indented as far as the item's text: 3 spaces under `9. `, 4 under `10. `
     const marker = `${i + 1}. `;
     const indent = ' '.repeat(marker.length);

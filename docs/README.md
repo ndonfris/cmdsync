@@ -9,7 +9,6 @@ Start with [Getting started](getting-started.md), then read whichever guide you 
    - [3. Add a directive](getting-started.md#3-add-a-directive)
    - [4. Run it](getting-started.md#4-run-it)
    - [5. Shell completions](getting-started.md#5-shell-completions)
-   - [Next](getting-started.md#next)
 2. **[Local install](local-install.md)**: cmdsync as a dev dependency of a project: running it, scripts, CI and git hooks, upgrading
    - [Running it](local-install.md#running-it)
    - [In CI and git hooks](local-install.md#in-ci-and-git-hooks)

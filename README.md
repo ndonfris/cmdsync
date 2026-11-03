@@ -84,6 +84,24 @@ More in [global install](docs/global-install.md): the man page, Node version man
 Or start at the [table of contents](docs/README.md).
 <!-- CMDSYNC end -->
 
+## Documentation 2
+
+<!-- CMDSYNC start: node scripts/docs-nav.ts --list -->
+- [Getting started](docs/getting-started.md): Install, create a config (`cmdsync init`, or `cmdsync migrate` from update-codeblocks), add a first directive, run it, shell completions
+- [Local install](docs/local-install.md): cmdsync as a dev dependency of a project: running it, scripts, CI and git hooks, upgrading
+- [Global install](docs/global-install.md): cmdsync on your `PATH` in every repository: the man page, Node version managers, the global config, upgrading and removing
+- [Directives](docs/directives.md): The directive syntax and modes (region, line, codeblock, console, inline), `include=`, tables, mdx, changelogs, any file, and the comment syntax per file type
+- [Custom directives](docs/custom-directives.md): Your own directives: templates, filters and TypeScript formatters
+- [CLI](docs/cli.md): Every command and option, `status`/`--diff`, interactive mode, `lint`, shell completions, the man page
+- [Configuration](docs/configuration.md): `cmdsync.json` / `package.json`, allowed commands, installing binaries, the shell, post-update commands, the global config and multiple repositories
+- [Git hooks](docs/git-hooks.md): Regenerating on every commit: `cmdsync hook install`, husky, lefthook, pre-commit
+- [GitHub Actions](docs/github-actions.md): The action, checking or regenerating in CI, and updating other repositories on release
+- [Generating docs from your source code](docs/generating-docs.md): A worked example: tables generated from TypeScript source
+- [Using it as a library](docs/library.md): The API
+- [Migrating from `update-codeblocks`](docs/migrating.md): `cmdsync migrate`
+- [Development](docs/development.md): Building from source, tests, releasing
+<!-- CMDSYNC end -->
+
 ## Contributing
 
 All contributions are welcome! Just fork the repository and open a pull request, or [open an issue](https://github.com/ndonfris/cmdsync/issues).

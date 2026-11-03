@@ -114,16 +114,45 @@ export const openingFence = (line: string) => line.match(/^((?:\s*>)*\s*)(`{3,}|
 const fenceFor = (body: string) =>
   '`'.repeat(Math.max(3, ...[...body.matchAll(/^\s*(`{3,})/gm)].map(m => m[1]!.length + 1)));
 
-/** A closing fence uses the same character, is at least as long, and has nothing after it */
-const isClosingFence = (line: string, fence: string) => {
+/** How many blockquotes a line is in: `> > x` → 2 */
+const quoteDepth = (line: string) => line.match(/^(?:\s*>)*/)![0].split('>').length - 1;
+
+/** The blockquote markers and indentation a line starts with: `> > ` */
+export const linePrefix = (line: string) => line.match(/^(?:\s*>)*\s*/)![0];
+
+/**
+ * A closing fence uses the same character, is at least as long, has nothing after it,
+ * and is in as many blockquotes as the opening one: `> \`\`\`` closes only a quoted block
+ */
+const isClosingFence = (line: string, fence: string, depth: number) => {
   const match = line.match(/^(?:\s*>)*\s*(`{3,}|~{3,})\s*$/)?.[1];
-  return !!match && match[0] === fence[0] && match.length >= fence.length;
+  return !!match && match[0] === fence[0] && match.length >= fence.length && quoteDepth(line) === depth;
 };
 
-/** Index of the line closing the fence opened at `open`, or -1 when unterminated */
+/**
+ * Index of the line closing the fence opened at `open`, or -1 when nothing closes it:
+ * the end of the file, or (for a fence inside a blockquote) the end of the quote
+ */
 export const closingFence = (lines: string[], open: number, fence: string) => {
-  for (let i = open + 1; i < lines.length; i++) if (isClosingFence(lines[i]!, fence)) return i;
+  const depth = quoteDepth(lines[open]!);
+  for (let i = open + 1; i < lines.length; i++) {
+    if (isClosingFence(lines[i]!, fence, depth)) return i;
+    if (quoteDepth(lines[i]!) < depth) return -1;
+  }
   return -1;
+};
+
+/**
+ * The last line of the fenced block opened at `open`: its closing fence, else the last line
+ * of the blockquote it's in (a quoted block ends with its quote), else the end of the file
+ */
+export const blockEnd = (lines: string[], open: number, fence: string) => {
+  const depth = quoteDepth(lines[open]!);
+  for (let i = open + 1; i < lines.length; i++) {
+    if (isClosingFence(lines[i]!, fence, depth)) return i;
+    if (quoteDepth(lines[i]!) < depth) return i - 1;
+  }
+  return lines.length - 1;
 };
 
 /** [start, end) ranges of inline code spans, where directives are only examples */
@@ -201,7 +230,7 @@ function parseOptions(raw: string | undefined, directives: Record<string, Custom
 /** Directives on one line, in order (outside of inline code in markdown) */
 export function lineDirectives(text: string, line: number, syntax: RegionSyntax) {
   const spans = syntax.fences ? codeSpans(text) : [];
-  return [...text.matchAll(startPattern(syntax))]
+  return [...text.matchAll(patterns(syntax).start)]
     .filter(m => !spans.some(([start, end]) => m.index >= start && m.index < end))
     .filter(m => m[2] !== undefined || /(^|\s)include=/.test(m[1] ?? ''))
     .map(m => {
@@ -220,13 +249,24 @@ export function lineDirectives(text: string, line: number, syntax: RegionSyntax)
 /** Mentions of the marker on a line (start or end comments, or typos of either), outside of inline code in markdown */
 function markerMentions(text: string, syntax: RegionSyntax): number {
   const spans = syntax.fences ? codeSpans(text) : [];
-  return [...text.matchAll(markerMention(syntax))].filter(m => !spans.some(([start, stop]) => m.index >= start && m.index < stop)).length;
+  return [...text.matchAll(patterns(syntax).mention)].filter(m => !spans.some(([start, stop]) => m.index >= start && m.index < stop)).length;
 }
 
 /** Every directive in `content`, skipping fenced code blocks in markdown */
 /** `<!-- MARKER ignore start -->` and `<!-- MARKER ignore end -->`, in the file's comment syntax */
 const ignorePattern = (syntax: RegionSyntax, which: 'start' | 'end') =>
   new RegExp(`${escapeRegExp(syntax.open)}\\s*${markerPattern(syntax.marker)}\\s+ignore\\s+${which}\\s*${closeOrEol(syntax)}`);
+
+/** A syntax's patterns, built once rather than on every line it scans */
+const compiled = new WeakMap<RegionSyntax, { start: RegExp; mention: RegExp; ignoreStart: RegExp; ignoreEnd: RegExp; }>();
+const patterns = (syntax: RegionSyntax) => {
+  let found = compiled.get(syntax);
+  if (!found) {
+    found = { start: startPattern(syntax), mention: markerMention(syntax), ignoreStart: ignorePattern(syntax, 'start'), ignoreEnd: ignorePattern(syntax, 'end') };
+    compiled.set(syntax, found);
+  }
+  return found;
+};
 
 /** Whether `pattern` matches `line` outside of inline code (in markdown) */
 const mentions = (line: string, pattern: RegExp, syntax: RegionSyntax) => {
@@ -242,20 +282,17 @@ const mentions = (line: string, pattern: RegExp, syntax: RegionSyntax) => {
  * skipped, so an example of `ignore end` in one doesn't end it.
  */
 export function ignoredRange(lines: string[], i: number, syntax: RegionSyntax): number | undefined {
-  const start = ignorePattern(syntax, 'start');
-  const end = ignorePattern(syntax, 'end');
   const line = lines[i]!;
+  if (!line.includes('ignore')) return undefined;
+  const { ignoreStart: start, ignoreEnd: end } = patterns(syntax);
   if (!mentions(line, start, syntax)) return undefined;
   if (mentions(line.slice(start.exec(line)!.index), end, syntax)) return i;
   for (let j = i + 1; j < lines.length; j++) {
     const fence = syntax.fences && openingFence(lines[j]!);
-    if (fence) {
-      const close = closingFence(lines, j, fence[2]!);
-      if (close === -1) return -1;
-      j = close;
-    } else if (mentions(lines[j]!, end, syntax)) {
-      return j;
-    }
+    // only a closed block is skipped: an unclosed one would otherwise hide the ignore end after it
+    const close = fence ? closingFence(lines, j, fence[2]!) : -1;
+    if (close !== -1) j = close;
+    else if (mentions(lines[j]!, end, syntax)) return j;
   }
   return -1;
 }
@@ -266,8 +303,7 @@ export function findDirectives(content: string, syntax: RegionSyntax): Directive
   for (let i = 0; i < lines.length; i++) {
     const fence = syntax.fences && openingFence(lines[i]!);
     if (fence) {
-      const close = closingFence(lines, i, fence[2]!);
-      i = close === -1 ? lines.length : close;
+      i = blockEnd(lines, i, fence[2]!);
       continue;
     }
     const ignored = ignoredRange(lines, i, syntax);
@@ -417,10 +453,13 @@ export function updateRegions(
   const regionEnd = (from: number) => {
     for (let stop = from; stop < lines.length; stop++) {
       const nested = syntax.fences && openingFence(lines[stop]!);
+      const ignored = nested ? undefined : ignoredRange(lines, stop, syntax);
       if (nested) {
-        const close = closingFence(lines, stop, nested[2]!);
-        if (close === -1) return -1;
-        stop = close;
+        stop = blockEnd(lines, stop, nested[2]!);
+      } else if (ignored !== undefined) {
+        // an end marker shown inside an ignored range isn't this region's
+        if (ignored === -1) return -1;
+        stop = ignored;
       } else if (lineDirectives(lines[stop]!, stop, syntax).length > 0) {
         return -1;
       } else if (end.test(lines[stop]!)) {
@@ -440,8 +479,7 @@ export function updateRegions(
   while (i < lines.length) {
     const fence = syntax.fences && openingFence(lines[i]!);
     if (fence) {
-      const close = closingFence(lines, i, fence[2]!);
-      const last = close === -1 ? lines.length - 1 : close;
+      const last = blockEnd(lines, i, fence[2]!);
       output.push(...lines.slice(i, last + 1));
       i = last + 1;
       continue;
@@ -481,7 +519,8 @@ export function updateRegions(
     // line: replace exactly the next line with exactly one line of output
     if (mode === 'line') {
       const target = lines[i];
-      if (target === undefined) {
+      // the empty string after a file's final newline isn't a line to replace
+      if (target === undefined || (i === lines.length - 1 && target === '')) {
         invalid('no line follows the directive');
         continue;
       }
@@ -499,7 +538,7 @@ export function updateRegions(
         });
         continue;
       }
-      const replacement = body === '' ? '' : lines[directive.line]!.match(/^\s*/)![0] + body.trimStart();
+      const replacement = body === '' ? '' : linePrefix(lines[directive.line]!) + body.trimStart();
       output.push(replacement);
       updated(directive, target !== replacement, 'line', i);
       i++;
@@ -515,10 +554,12 @@ export function updateRegions(
     if (isConsole(mode)) {
       const stdout = generate(directive, options)?.replace(/\s+$/, '');
       if (stdout === undefined) continue;
+      // the command that ran, so a custom directive's \`command\` template shows what produced the output
+      const shown = ran.get(directive) || directive.command;
       const { lang } = directive.options;
       const blocks = mode === 'console'
-        ? [{ lang: lang ?? 'console', body: [`$ ${directive.command}`, ...stdout ? [stdout] : []].join('\n') }]
-        : [{ lang: lang ?? 'sh', body: directive.command }, { lang: 'txt', body: stdout }];
+        ? [{ lang: lang ?? 'console', body: [`$ ${shown}`, ...stdout ? [stdout] : []].join('\n') }]
+        : [{ lang: lang ?? 'sh', body: shown }, { lang: 'txt', body: stdout }];
       // the blocks already there: up to as many as this directive writes, with only blank lines before each
       const found: [number, number][] = [];
       let next = i;
@@ -540,7 +581,7 @@ export function updateRegions(
         invalid('the fenced code block after the directive is never closed');
         continue;
       }
-      const prefix = lines[directive.line]!.match(/^\s*/)![0];
+      const prefix = linePrefix(lines[directive.line]!);
       const rendered = blocks.flatMap(({ lang: info, body }, n) => {
         const fence = fenceFor(body);
         return [...n > 0 ? [''] : [], `${prefix}${fence}${info}`, ...body ? [indent(body, prefix)] : [], `${prefix}${fence}`];
@@ -563,7 +604,7 @@ export function updateRegions(
       // no block yet: create one right after the directive
       const body = generate(directive, options)?.replace(/\s+$/, '');
       if (body === undefined) continue;
-      const indentation = lines[directive.line]!.match(/^\s*/)![0];
+      const indentation = linePrefix(lines[directive.line]!);
       const fence = fenceFor(body);
       output.push(`${indentation}${fence}${directive.options.lang}`);
       if (body !== '') output.push(indent(body, indentation));
@@ -617,7 +658,7 @@ export function updateRegions(
       continue;
     }
     const previous = lines.slice(i, stop).join('\n');
-    const replacement = indent(body, lines[directive.line]!.match(/^\s*/)![0]);
+    const replacement = indent(body, linePrefix(lines[directive.line]!));
     if (replacement !== '') output.push(replacement);
     output.push(lines[stop]!);
     updated(directive, previous !== replacement, 'region', stop);

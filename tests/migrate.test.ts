@@ -31,6 +31,13 @@ describe('migrateDirectives', () => {
     assert.equal(migrateDirectives(md('# CMDSYNC: d', 'x', '# /CMDSYNC'), hash, migration).content, md('# CMDSYNC start: d', 'x', '# CMDSYNC end'));
   });
 
+  it('does not take an end marker inside an ignored range for an old directive\'s', () => {
+    const input = md('<!-- CMDSYNC: a -->', 'x', '<!-- CMDSYNC ignore start -->', '<!-- /CMDSYNC -->', '<!-- CMDSYNC ignore end -->');
+    const result = migrateDirectives(input, html, migration);
+    assert.equal(result.content, input);
+    assert.deepEqual(result.unclassified, [0]);
+  });
+
   it('leaves ignored ranges alone', () => {
     const input = md('<!-- CMDSYNC ignore start -->', '<!-- CMDSYNC[format=md-table]: a -->', 'x', '<!-- /CMDSYNC -->', '<!-- CMDSYNC ignore end -->');
     assert.equal(migrateDirectives(input, html, migration).content, input);

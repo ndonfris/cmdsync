@@ -403,3 +403,49 @@ describe('updateRegions: ignore ranges', () => {
     assert.deepEqual(updateRegions(md('a', '<!-- M ignore end -->'), markdown, never, { lint: true }).stray, [1]);
   });
 });
+
+describe('updateRegions: fences and blockquotes', () => {
+  const run = (input: string, output = 'new') => updateRegions(input, markdown, ok(output));
+
+  it('a quoted fence does not close an unquoted block, so directives after it still run', () => {
+    const input = md('```markdown', '> ```sh', '> code', '> ```', '```', '<!-- M start: x -->old<!-- M end -->');
+    const { content, results } = run(input);
+    assert.equal(content, input.replace('old', 'new'));
+    assert.deepEqual(results.map(r => r.kind), ['updated']);
+  });
+
+  it('an unquoted fence does not close a quoted block: the block ends with its quote', () => {
+    const input = md('> ```sh', '> echo', 'after the quote', '<!-- M start: x -->old<!-- M end -->', '```');
+    assert.equal(run(input).content, input.replace('old', 'new'));
+  });
+
+  it('keeps the blockquote around output for directives inside one', () => {
+    assert.equal(run(md('> <!-- M start: x -->', '> old', '> <!-- M end -->'), 'a\n\nb').content,
+      md('> <!-- M start: x -->', '> a', '>', '> b', '> <!-- M end -->'));
+    assert.equal(run(md('> <!-- M line: x -->', '> old')).content, md('> <!-- M line: x -->', '> new'));
+    assert.equal(run(md('> <!-- M console: echo hi -->', '> ```console', '> $ old', '> ```'), 'hi').content,
+      md('> <!-- M console: echo hi -->', '> ```console', '> $ echo hi', '> hi', '> ```'));
+    assert.equal(run(md('> <!-- M codeblock lang=sh: x -->', '> tail')).content,
+      md('> <!-- M codeblock lang=sh: x -->', '> ```sh', '> new', '> ```', '> tail'));
+  });
+
+  it('a line directive on the last line has no line to replace, even with a final newline', () => {
+    const input = '<!-- M line: x -->\n';
+    const { content, results } = run(input);
+    assert.equal(content, input);
+    assert.match(results[0]?.kind === 'invalid' ? results[0].reason : '', /no line follows/);
+  });
+
+  it('an unclosed fence inside an ignored range does not hide its ignore end', () => {
+    const input = md('<!-- M ignore start -->', '```', 'example', '<!-- M ignore end -->', '<!-- M start: x -->old<!-- M end -->');
+    const { content, results } = run(input);
+    assert.equal(content, input.replace('old', 'new'));
+    assert.deepEqual(results.map(r => r.kind), ['updated']);
+  });
+
+  it('a region does not end at an end marker shown inside an ignored range', () => {
+    const input = md('<!-- M start: x -->', '<!-- M ignore start -->', '<!-- M end -->', '<!-- M ignore end -->', 'after');
+    const { results } = run(input);
+    assert.match(results[0]?.kind === 'invalid' ? results[0].reason : '', /no end marker/);
+  });
+});

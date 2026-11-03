@@ -25,8 +25,6 @@ Requires Node.js `>=22.18`.
 
 ### Local install
 
-As a dev dependency, so the project, its contributors and CI all run the same version:
-
 ```fish
 # with npm
 npm install -D cmdsync
@@ -44,11 +42,7 @@ bun add -d cmdsync
 npx cmdsync --help
 ```
 
-Run it through the package manager (`npx cmdsync`, `yarn cmdsync`, `pnpm cmdsync`, `bunx cmdsync`) or from `package.json` scripts, like `"docs": "cmdsync"` and `"docs:check": "cmdsync check"`. [`cmdsync hook install`](docs/git-hooks.md) adds the same local install to the pre-commit hook.
-
 ### Global install
-
-To have `cmdsync` on your `PATH` in every repository:
 
 ```fish
 # with npm (also installs the man page: man cmdsync)
@@ -64,15 +58,14 @@ pnpm add -g cmdsync
 bun add -g cmdsync
 ```
 
-With a Node version manager (nvm, fnm, volta, ...), global packages belong to the active Node version, so install it again after switching versions. If `man cmdsync` finds nothing after an npm install, add `$(npm prefix -g)/share/man` to your `MANPATH`. For tab completion, see [shell completions](docs/cli.md#shell-completions). To run your own checkout instead, see [building from source](docs/development.md#building-from-source).
-
-`cmdsync init` writes a starter `cmdsync.json` (or, with `--package-json`, a `"cmdsync"` key in `package.json`) and prints the next steps. It leaves an existing config alone, and points at [`cmdsync migrate`](docs/migrating.md) when it finds an `update-codeblocks` one.
-
 ## Documentation
 
 <!-- CMDSYNC start: node scripts/docs-nav.ts --table -->
 | Guide | What's in it |
 | --- | --- |
+| [Getting started](docs/getting-started.md) | Install, create a config (`cmdsync init`, or `cmdsync migrate` from update-codeblocks), add a first directive, run it, shell completions |
+| [Local install](docs/local-install.md) | cmdsync as a dev dependency of a project: running it, scripts, CI and git hooks, upgrading |
+| [Global install](docs/global-install.md) | cmdsync on your `PATH` in every repository: the man page, Node version managers, the global config, upgrading and removing |
 | [Directives](docs/directives.md) | The directive syntax and modes (region, line, codeblock, console, inline), `include=`, tables, mdx, changelogs, any file, and the comment syntax per file type |
 | [Custom directives](docs/custom-directives.md) | Your own directives: templates, filters and TypeScript formatters |
 | [CLI](docs/cli.md) | Every command and option, `status`/`--diff`, interactive mode, `lint`, shell completions, the man page |

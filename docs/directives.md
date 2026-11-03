@@ -259,5 +259,5 @@ cmdsync --comment '/* */' --marker GEN legacy/*.styl
 <!-- CMDSYNC start: node scripts/docs-nav.ts --footer docs/directives.md -->
 ---
 
-[Contents](README.md) · [Custom directives →](custom-directives.md)
+[← Global install](global-install.md) · [Contents](README.md) · [Custom directives →](custom-directives.md)
 <!-- CMDSYNC end -->

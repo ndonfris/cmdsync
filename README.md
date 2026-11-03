@@ -257,7 +257,7 @@ On top of `format=`, `lang=` and `include=`, a custom directive takes any `key=v
 | Placeholder | Value |
 | --- | --- |
 | `{output}` | the command's output (after `format=`), or the formatter's result |
-| `{cmd}` | the command as written in the directive |
+| `{input}` (or `{cmd}`) | the command as written in the directive |
 | `{command}` | the command that ran (the custom directive's `command`, filled in) |
 | `{name}`, `{mode}`, `{lang}` | the directive's name, base mode, and `lang=` |
 | `{file}`, `{dir}`, `{line}` | the file with the directive (relative to the config root), its directory, the directive's line |
@@ -284,25 +284,32 @@ Filters run left to right: `{output|trim|quote}`.
 
 ### Formatters
 
-A formatter is a function from the directive's context to the text that's written. In `region` mode that's the whole region, so it can add anything around the output: quotes, a code block for the command and another for its output, a caption, ... Import the types from `cmdsync` (installed as a dev dependency) to write it with completions and checks:
+A formatter is a function from the directive's context to the text that's written. In `region` mode that's the whole region, so it can add anything around the output: quotes, a code block for the command and another for its output, a caption, ... Import the types and helpers from `cmdsync` (installed as a dev dependency) to write it with completions and checks:
 
 ```ts
 // scripts/terminal.ts
-import { defineFormatter } from 'cmdsync';
+import { defineFormatter, fence } from 'cmdsync';
 
 export default defineFormatter(ctx => [
   ...ctx.params.caption ? [`*${ctx.params.caption}*`, ''] : [],
-  ctx.fence(ctx.cmd, ctx.lang ?? 'sh'),
+  fence(ctx.input, ctx.lang ?? 'sh'),
   '',
-  ctx.fence(ctx.output, 'txt'),
+  fence(ctx.output, 'txt'),
 ].join('\n'));
 ```
 
-`ctx` (`FormatterContext`) has:
+`ctx` (`FormatterContext`) is:
 
-- `output`, `cmd`, `command`, `name`, `mode`, `lang`, `params`: as in the templates above
-- `file` (absolute), `line` (1-based), `config` (the resolved config)
-- helpers: `fence(text, lang?)`, `quote(text, prefix?)`, `indent(text, by?)`, and `render(template)` to fill a template string with this directive's placeholders
+| Field | Value |
+| --- | --- |
+| `output` | the command's output (after `format=`) |
+| `input` | the command as written in the directive |
+| `name`, `mode`, `lang` | the custom directive's name, its base mode, and `lang=` (or the directive's default) |
+| `params` | the directive's `key=value` words |
+| `file`, `line` | the file with the directive (absolute), and the directive's line (1-based) |
+| `config` | the resolved config |
+
+Helpers to import from `cmdsync`: `fence(text, lang?)` (a fenced block, with a fence longer than any inside), `quote(text, prefix?)`, `indent(text, by?)`, and `renderTemplate(template, vars)` with `templateVars(ctx)` to fill a template string with the directive's placeholders.
 
 It runs synchronously and must return a string; if it throws, the directive fails with that message and keeps its content. `.ts` formatters run with Node's built-in type stripping (Node `>=22.18`), so they can't use TypeScript-only syntax like `enum`. `cmdsync lint` reports formatters that fail to load, without running anything.
 
@@ -1097,7 +1104,7 @@ The main pieces:
 | `resolveConfig`, `findConfig`, `validateConfig` | config loading (with `defaults` for a global config) |
 | `run`, `processFile`, `collectFiles` | a whole run, one file, or the files a config includes |
 | `updateRegions`, `findDirectives` | the scanner, as a pure text transform |
-| `loadFormatters`, `renderTemplate`, `defineFormatter`, `Formatter`, `FormatterContext` | custom directives |
+| `loadFormatters`, `renderTemplate`, `templateVars`, `defineFormatter`, `Formatter`, `FormatterContext`, `fence`, `quote`, `indent` | custom directives |
 | `formatOutput`, `mdTable`, `htmlTable` | the `format=` table renderers |
 | `unifiedDiff`, `diffLines` | `--diff` |
 | `planMigration`, `migrateDirectives` | `cmdsync migrate` |

@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://unpkg.com/cmdsync/cmdsync.global.schema.json",
+  "title": "cmdsync global config",
+  "description": "Global cmdsync config ($CMDSYNC_GLOBAL_CONFIG, or $XDG_CONFIG_HOME/cmdsync/config.json): defaults for every repository, and the repositories that --all, --group and --repo run in",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "defaults": {
+      "$ref": "cmdsync.schema.json",
+      "description": "Config merged under every repository's own config, which wins (install and env merge key by key)"
+    },
+    "repos": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Absolute path, or starting with ~/"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Name for --repo (default: the directory's name)"
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Groups for --group"
+          }
+        }
+      }
+    }
+  }
+}

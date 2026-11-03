@@ -24,6 +24,9 @@ export const OPTIONS: CliOption[] = [
   { long: 'command', value: 'command', multiple: true, description: 'Allowed command binary, repeatable (overrides config)' },
   { long: 'install', negatable: true, description: 'Install every binary a directive uses (--no-install: never install)' },
   { long: 'post-update-cmds', negatable: true, description: 'Run the postUpdate commands even if nothing changed (--no-post-update-cmds: never)' },
+  { long: 'all', description: 'Run in every repository of the global config' },
+  { long: 'group', short: 'g', value: 'text', multiple: true, description: 'Run in the global config repositories of a group, repeatable' },
+  { long: 'repo', short: 'r', value: 'text', multiple: true, description: 'Run in a global config repository, by name or path, repeatable' },
   { long: 'quiet', short: 'q', description: 'Only print errors' },
   { long: 'verbose', description: 'Also print every file scanned and every command run, with timings' },
   { long: 'help', short: 'h', description: 'Show help' },
@@ -46,6 +49,8 @@ export const SUBCOMMANDS: Subcommand[] = [
   { name: 'check', description: 'Exit 1 if any region is out of date (same as --check)', args: [] },
   { name: 'completions', description: 'Print a shell completion script', args: [...SHELLS] },
   { name: 'hook', description: 'Add cmdsync --staged to the git pre-commit hook', args: ['install'] },
+  { name: 'init', description: 'Create a cmdsync.json here, or the global config (init global)', args: ['global'] },
+  { name: 'repos', description: 'List, add or remove repositories in the global config', args: ['list', 'add', 'remove'] },
   { name: 'lint', description: 'Check every directive without running commands, and list where each one is', args: [] },
 ];
 
@@ -63,6 +68,9 @@ export const PARSE_OPTIONS = {
   command: { type: 'string', multiple: true },
   install: { type: 'boolean' },
   'post-update-cmds': { type: 'boolean' },
+  all: { type: 'boolean', default: false },
+  group: { type: 'string', short: 'g', multiple: true },
+  repo: { type: 'string', short: 'r', multiple: true },
   quiet: { type: 'boolean', short: 'q', default: false },
   verbose: { type: 'boolean', default: false },
   help: { type: 'boolean', short: 'h', default: false },

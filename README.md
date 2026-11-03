@@ -256,6 +256,8 @@ npx cmdsync --help
 
 Requires Node.js `>=22.17`.
 
+`cmdsync init` writes a starter `cmdsync.json` (or, with `--package-json`, a `"cmdsync"` key in `package.json`) and prints the next steps. It leaves an existing config alone, and points at [`cmdsync migrate`](#migrating-from-update-codeblocks) when it finds an `update-codeblocks` one.
+
 ## CLI
 
 <!-- CMDSYNC codeblock: tsx src/cli.ts --help -->
@@ -264,6 +266,8 @@ Usage: cmdsync [update] [options] [paths...]
        cmdsync status [options] [paths...]
        cmdsync check [options] [paths...]
        cmdsync lint [options] [paths...]
+       cmdsync init [--package-json] | init global [--add]
+       cmdsync repos [list | add [path] | remove <name>]
        cmdsync completions <bash|zsh|fish|nu>
        cmdsync hook install
 
@@ -292,6 +296,13 @@ Commands:
                            options, missing end markers or includes, commands
                            outside "commands", stray markers (exit 1), and
                            binaries that aren't on PATH (warning)
+  init                     Create a starter cmdsync.json here (--package-json:
+                           a "cmdsync" key in package.json instead)
+  init global              Create the global config (--add: and add this repo)
+  repos                    List the global config's repositories
+  repos add [path]         Add a repository (default: this one), with
+                           --name <name> and --group <group>...
+  repos remove <name>      Remove a repository, by name or path
   completions <shell>      Print a completion script for bash, zsh, fish or nu
   hook install             Add `cmdsync --staged` to the git pre-commit hook
                            (prints the line to add if a hook already exists)
@@ -319,6 +330,11 @@ Options:
       --no-post-update-cmds
                            Never run "postUpdate" commands (default: run them
                            after an update that wrote at least one file)
+      --all                Run in every repository of the global config
+  -g, --group <name>       Run in the global config's repositories in a group,
+                           repeatable
+  -r, --repo <name>        Run in a global config repository, by name or path,
+                           repeatable
   -q, --quiet              Only print errors
       --verbose            Also print every file scanned, and every command run
                            with its exit status and time
@@ -339,7 +355,8 @@ Directives: <!-- CMDSYNC [mode] [start] [format=...] [lang=...]: cmd -->
                               instead of a command; a line range is dedented
 
 Config is read from the nearest cmdsync.json, or the "cmdsync" key of
-the nearest package.json.
+the nearest package.json, over the "defaults" of the global config
+($CMDSYNC_GLOBAL_CONFIG, or $XDG_CONFIG_HOME/cmdsync/config.json).
 
 Exit codes: 0 success, 1 failed command, invalid directive or out of date
 region (--check, --diff), 2 usage error
@@ -521,6 +538,40 @@ The allowlist protects against typos and against commands you didn't expect to s
 ```
 
 `--post-update-cmds` runs them even when nothing changed, and `--no-post-update-cmds` skips them. They never run for `status`, `check`, `--dry-run` or `--diff`, since nothing is written. With [`--staged`](#git-hooks) they run after the files are written and before they're staged, so their changes to those files are part of the commit.
+
+## Multiple repositories
+
+A global config holds defaults for every repository, and a list of repositories to run in together. It's `$CMDSYNC_GLOBAL_CONFIG`, or `$XDG_CONFIG_HOME/cmdsync/config.json` (`~/.config/cmdsync/config.json`):
+
+```json
+{
+  "$schema": "https://unpkg.com/cmdsync/cmdsync.global.schema.json",
+  "defaults": {
+    "shell": "fish",
+    "install": { "my-cli": "npm install -g my-cli" }
+  },
+  "repos": [
+    { "path": "~/repos/A", "groups": ["docs"] },
+    { "path": "~/repos/B", "groups": ["docs", "site"] },
+    { "path": "~/work/C", "name": "c-docs" }
+  ]
+}
+```
+
+- `defaults` is merged under each repository's own config, which wins. `install` and `env` merge key by key, everything else is replaced. It applies to every run, not only the ones below.
+- `cmdsync --all` runs in every repository, `--group docs` in those of a group, and `--repo A` (a name or path) in one. Both are repeatable, and work with `update`, `status`, `check` and `lint`: `cmdsync status --group docs` previews them all. Each repository uses its own config, so these can't be combined with paths, `--config` or `--staged`. The exit code is the worst of them.
+- `name` defaults to the directory's name. Paths under your home directory are stored as `~/...`, so the file works on other machines.
+
+Manage it from the CLI:
+
+```fish
+cmdsync init global                  # create it
+cmdsync init global --add            # ... and add this repository
+cmdsync repos add ~/repos/B --group docs --group site
+cmdsync repos add . --name c-docs
+cmdsync repos                        # list them (and flag missing paths)
+cmdsync repos remove c-docs
+```
 
 ## Git hooks
 

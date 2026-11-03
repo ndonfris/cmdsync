@@ -39,11 +39,13 @@
       "default": "./dist/index.js"
     },
     "./schema.json": "./cmdsync.schema.json",
+    "./global.schema.json": "./cmdsync.global.schema.json",
     "./package.json": "./package.json"
   },
   "files": [
     "dist",
     "cmdsync.schema.json",
+    "cmdsync.global.schema.json",
     "README.md"
   ],
   "publishConfig": {

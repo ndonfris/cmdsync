@@ -21,6 +21,9 @@ inputs:
   working-directory:
     description: Directory to run in
     default: '.'
+  node-version:
+    description: 'Node.js version to set up for cmdsync (default: the runner''s Node when it''s >= 22.18, else 22). Setting up Node changes it for the rest of the job'
+    default: ''
 
 outputs:
   changed:
@@ -33,11 +36,31 @@ outputs:
 runs:
   using: composite
   steps:
+    # cmdsync needs Node >= 22.18 (it runs TypeScript natively); only set it up when the
+    # runner's is older, since setup-node changes Node for the caller's later steps too
+    - name: Check Node.js
+      id: node
+      shell: bash
+      env:
+        INPUT_NODE_VERSION: ${{ inputs.node-version }}
+      run: |
+        setup=true
+        if [ -z "$INPUT_NODE_VERSION" ] && version=$(node -p 'process.versions.node' 2>/dev/null); then
+          IFS=. read -r major minor _ <<< "$version"
+          if (( major > 22 || (major == 22 && minor >= 18) )); then setup=false; fi
+        fi
+        echo "setup=$setup" >> "$GITHUB_OUTPUT"
+
+    - name: Set up Node.js
+      if: steps.node.outputs.setup == 'true'
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version || '22' }}
+
+    # npm install runs `prepare`, which builds dist/ and the man page
     - name: Install cmdsync
       shell: bash
-      run: |
-        npm install --no-save --no-package-lock --no-audit --no-fund --prefix "$GITHUB_ACTION_PATH"
-        npm run --prefix "$GITHUB_ACTION_PATH" build
+      run: npm install --no-save --no-package-lock --no-audit --no-fund --prefix "$GITHUB_ACTION_PATH"
 
     - name: Run cmdsync
       id: run

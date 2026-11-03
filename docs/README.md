@@ -38,6 +38,7 @@ Start with [Getting started](getting-started.md), then read whichever guide you 
    - [Choosing which changes to apply](cli.md#choosing-which-changes-to-apply)
    - [Linting directives](cli.md#linting-directives)
    - [Shell completions](cli.md#shell-completions)
+   - [Man page](cli.md#man-page)
 7. **[Configuration](configuration.md)**: `cmdsync.json` / `package.json`, allowed commands, installing binaries, the shell, post-update commands, the global config and multiple repositories
    - [`cmdsync.json`](configuration.md#cmdsyncjson)
    - [`package.json`](configuration.md#packagejson)

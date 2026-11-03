@@ -897,6 +897,7 @@ The action builds the CLI from source, so it doesn't need an npm release. Instal
 | `config` | `''` | Explicit config path |
 | `args` | `''` | Extra CLI arguments |
 | `working-directory` | `.` | Directory to run in |
+| `node-version` | `''` | Node.js to set up for cmdsync. By default the runner's Node is used when it's `>=22.18`, else Node 22 is set up (which also changes Node for the rest of the job) |
 
 | Output | Description |
 | --- | --- |

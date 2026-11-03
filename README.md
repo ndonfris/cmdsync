@@ -42,6 +42,8 @@ bun add -d cmdsync
 npx cmdsync --help
 ```
 
+More in [local install](docs/local-install.md): running it, scripts, CI and git hooks, upgrading.
+
 ### Global install
 
 ```fish
@@ -57,6 +59,8 @@ pnpm add -g cmdsync
 # with bun
 bun add -g cmdsync
 ```
+
+More in [global install](docs/global-install.md): the man page, Node version managers, the global config, upgrading and removing.
 
 ## Documentation
 

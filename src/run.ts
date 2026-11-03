@@ -7,14 +7,17 @@ import type { ResolvedConfig } from './config.js';
 /**
  * Binaries invoked by a shell command line: the first word of every segment
  * split on `|`, `||`, `&&`, `;`, `&`, newlines, `$(` and backticks, ignoring
- * leading `VAR=value` assignments. Best effort, not a full shell parser.
+ * leading `VAR=value` assignments, and skipping quoted text. Best effort, not a full shell parser.
  */
 export function commandBinaries(command: string): string[] {
-  return command
+  // quoted text is arguments, not commands: `node -p "a(b) | c"` runs only node
+  const unquoted = command.replace(/'[^']*'|"(?:\\.|[^"\\])*"/g, '""');
+  return unquoted
     .split(/\|\|?|&&?|;|\n|\$\(|`|\(|\)/)
     .map(segment => segment.trim().split(/\s+/).filter(word => !/^\w+=/.test(word))[0])
     .filter((word): word is string => !!word)
-    .map(word => basename(word.replace(/^['"]|['"]$/g, '')));
+    .map(word => basename(word.replace(/^['"]|['"]$/g, '')))
+    .filter(Boolean);
 }
 
 /** Binaries in `command` that the `commands` allowlist does not recognize */

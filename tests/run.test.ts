@@ -12,6 +12,11 @@ describe('commandBinaries', () => {
     assert.deepEqual(commandBinaries('FOO=1 my-cli env --json | jq . && echo $(date); /usr/bin/fish -c x'),
       ['my-cli', 'jq', 'echo', 'date', 'fish']);
   });
+
+  it('ignores separators inside quotes', () => {
+    assert.deepEqual(commandBinaries(`node -p "'[x](' + require('a') + ')' | b" && printf '%s; rm' x | jq`), ['node', 'printf', 'jq']);
+    assert.deepEqual(commandBinaries('echo "a \\" | b" | wc'), ['echo', 'wc']);
+  });
 });
 
 describe('unrecognizedBinaries', () => {

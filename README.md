@@ -68,6 +68,8 @@ Running `cmdsync` executes each command and replaces **only the content the comm
 <!---->
 ## Usage
 
+<!-- CMDSYNC ignore start -->
+
 <details open>
 <summary><b><ins>Basic example</ins></b></summary>
 
@@ -159,10 +161,21 @@ Running `cmdsync` executes each command and replaces **only the content the comm
 
 </details>
 
-*See Also:*
-- [getting started](docs/getting-started.md) for setup guide
-- [directives](docs/directives.md) for tables, other modes, and more examples
-- [complete examples](https://github.com/ndonfris/cmdsync/blob/master/examples/)
+*For more examples, visit:*
+
+- [`docs/getting-started.md`](docs/getting-started.md) for full setup guide and instructions
+- [`docs/directives.md`](docs/directives.md) for tables, other modes, and more examples
+- [`examples/`](https://github.com/ndonfris/cmdsync/blob/master/examples/) folder for complete examples
+
+<!-- <sub><i>For more examples, visit:</i></sub> -->
+<!---->
+<!-- <ul> -->
+<!-- <sub><li><a href="docs/getting-started.md"><code>docs/getting-started.md</code></a> for full setup guide & instructions </li></sub><br/> -->
+<!-- <sub><li><a href="docs/directives.md"><code>docs/directives.md</code></a> for tables, other modes, and more examples  </li></sub><br /> -->
+<!-- <sub><li><a href="https://github.com/ndonfris/cmdsync/blob/master/examples/"><code>examples/</code></a> folder for complete examples </li></sub><br /> -->
+<!-- </ul> -->
+
+<!-- CMDSYNC ignore end -->
 
 ## Documentation
 
@@ -193,6 +206,7 @@ Running `cmdsync` executes each command and replaces **only the content the comm
    - [MDX][docs/directives.md#mdx]
    - [Changelogs][docs/directives.md#changelogs]
    - [Any other file][docs/directives.md#any-other-file]
+   - [Ignoring a range][docs/directives.md#ignoring-a-range]
    - [Comment syntax][docs/directives.md#comment-syntax]
 5. **[Custom directives][docs/custom-directives.md]**: Your own directives: templates, filters and TypeScript formatters
    - [Templates][docs/custom-directives.md#templates]
@@ -267,6 +281,7 @@ All contributions are welcome! Just fork the repository and open a pull request,
 [docs/directives.md#mdx]: https://github.com/ndonfris/cmdsync/blob/master/docs/directives.md#mdx
 [docs/directives.md#changelogs]: https://github.com/ndonfris/cmdsync/blob/master/docs/directives.md#changelogs
 [docs/directives.md#any-other-file]: https://github.com/ndonfris/cmdsync/blob/master/docs/directives.md#any-other-file
+[docs/directives.md#ignoring-a-range]: https://github.com/ndonfris/cmdsync/blob/master/docs/directives.md#ignoring-a-range
 [docs/directives.md#comment-syntax]: https://github.com/ndonfris/cmdsync/blob/master/docs/directives.md#comment-syntax
 [docs/custom-directives.md]: https://github.com/ndonfris/cmdsync/blob/master/docs/custom-directives.md
 [docs/custom-directives.md#templates]: https://github.com/ndonfris/cmdsync/blob/master/docs/custom-directives.md#templates

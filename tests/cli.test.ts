@@ -371,7 +371,7 @@ describe('cmdsync in GitHub Actions', () => {
 describe('cmdsync completions', () => {
   it('prints a script per shell, and rejects others', () => {
     assert.match(cmdsync(temp(), ['completions', 'fish']).stdout, /^complete -c cmdsync /m);
-    assert.match(cmdsync(temp(), ['completions', 'bash']).stdout, /complete -o filenames -o bashdefault -F _cmdsync cmdsync/);
+    assert.match(cmdsync(temp(), ['completions', 'bash']).stdout, /^complete -o filenames -F _cmdsync cmdsync$/m);
     assert.equal(cmdsync(temp(), ['completions', 'sh']).status, 2);
   });
 });

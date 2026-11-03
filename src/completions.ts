@@ -8,6 +8,14 @@ const flags = (o: CliOption) => [...o.short ? [`-${o.short}`] : [], `--${o.long}
 
 const single = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
 
+/**
+ * Files and directories are only completed for a token that looks like a path (it has a `/`,
+ * or starts with `.` or `~`), so `cmdsync <TAB>` lists just the subcommands, and
+ * `cmdsync ./<TAB>` (or `docs/`, `~/`, `.github`) completes paths. Options that take a
+ * file (`--config`) always complete files.
+ */
+export const PATH_LIKE = /^[.~]|[/]/;
+
 /** Subcommands whose argument is one of a fixed set of values; the rest take paths and options */
 const VALUED = SUBCOMMANDS.filter(s => s.args.length > 0);
 
@@ -24,6 +32,9 @@ function bash(): string {
 _${BIN}() {
   local cur="\${COMP_WORDS[COMP_CWORD]}" prev="\${COMP_WORDS[COMP_CWORD-1]}"
   COMPREPLY=()
+  # files only for a token that looks like a path: ./, ../, ~/, docs/, .github
+  local path_like=0
+  [[ $cur == */* || $cur == .* || $cur == '~'* ]] && path_like=1
 ${subcommands.join('\n')}
   case "$prev" in
     ${valued('file')}) COMPREPLY=($(compgen -f -- "$cur")); return ;;
@@ -37,9 +48,9 @@ ${subcommands.join('\n')}
   if [[ $COMP_CWORD -eq 1 ]]; then
     COMPREPLY=($(compgen -W ${single(SUBCOMMANDS.map(s => s.name).join(' '))} -- "$cur"))
   fi
-  COMPREPLY+=($(compgen -f -- "$cur"))
+  (( path_like )) && COMPREPLY+=($(compgen -f -- "$cur"))
 }
-complete -o filenames -o bashdefault -F _${BIN} ${BIN}
+complete -o filenames -F _${BIN} ${BIN}
 `;
 }
 
@@ -69,11 +80,17 @@ ${subcommandCases.join('\n')}
   _arguments -s \\
     ${specs.join(' \\\n    ')} \\
     '1: :->first' \\
-    '*:path:_files'
-  if [[ $state == first ]]; then
-    _describe -t commands 'subcommand' subcommands
-    _files
-  fi
+    '*: :->path'
+  # files only for a token that looks like a path: ./, ../, ~/, docs/, .github
+  local path_like=0
+  [[ $PREFIX == */* || $PREFIX == .* || $PREFIX == '~'* ]] && path_like=1
+  case $state in
+    first)
+      _describe -t commands 'subcommand' subcommands
+      (( path_like )) && _files
+      ;;
+    path) (( path_like )) && _files ;;
+  esac
 }
 if [[ $zsh_eval_context[-1] == loadautofunc ]]; then
   _${BIN} "$@"
@@ -86,7 +103,14 @@ fi
 function fish(): string {
   const lines = [
     `# fish completion for ${BIN}: ${BIN} completions fish > ~/.config/fish/completions/${BIN}.fish`,
-    `complete -c ${BIN} -n '__fish_seen_subcommand_from ${VALUED.map(s => s.name).join(' ')}' -f`,
+    '',
+    '# files only for a token that looks like a path: ./, ../, ~/, docs/, .github',
+    `function __${BIN}_path_like`,
+    `    string match -qr -- ${single(PATH_LIKE.source)} (commandline -ct)`,
+    'end',
+    `complete -c ${BIN} -f`,
+    `complete -c ${BIN} -n __${BIN}_path_like -F`,
+    '',
     ...SUBCOMMANDS.flatMap(s => [
       `complete -c ${BIN} -n __fish_use_subcommand -a ${s.name} -d ${single(s.description)}`,
       ...s.args.length ? [`complete -c ${BIN} -n '__fish_seen_subcommand_from ${s.name}' -a ${single(s.args.join(' '))}`] : [],
@@ -111,7 +135,7 @@ function nu(): string {
     `  ${flag(o).padEnd(width)}  # ${o.description}`,
     ...o.negatable ? [`  ${`--no-${o.long}`.padEnd(width)}  # Opposite of --${o.long}`] : [],
   ]);
-  const paths = `  ${'...paths: path'.padEnd(width)}  # Files or directories to process`;
+  const paths = `  ${`...paths: string@"nu-complete ${BIN} paths"`.padEnd(width)}  # Files or directories to process`;
   const subcommands = SUBCOMMANDS.flatMap(s => s.args.length ? [
     '',
     `def "nu-complete ${BIN} ${s.name}" [] { [${s.args.map(a => `"${a}"`).join(' ')}] }`,
@@ -132,6 +156,13 @@ function nu(): string {
 # nushell completion for ${BIN}:
 #   ${BIN} completions nu | save -f ($nu.default-config-dir | path join completions ${BIN}.nu)
 #   then add \`use completions/${BIN}.nu *\` to your config.nu
+
+# files only for a token that looks like a path (./, ../, ~/, docs/, .github):
+# null falls back to nushell's file completion, an empty list completes nothing
+def "nu-complete ${BIN} paths" [context: string] {
+  let token = ($context | split row ' ' | last)
+  if ($token =~ ${JSON.stringify(PATH_LIKE.source)}) { null } else { [] }
+}
 
 export extern "${BIN}" [
 ${paths}

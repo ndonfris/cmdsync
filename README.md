@@ -34,7 +34,7 @@ The mode says what the output replaces:
 | [`line`](#line) | the next line (the output must be one line) | none | any |
 | [`codeblock`](#codeblock) | the body of the next fenced code block | none | markdown, mdx |
 
-`start` marks a directive that has an end comment, so the pair reads `CMDSYNC region start` … `CMDSYNC end`. It's optional (`region` alone works too), and `line`/`codeblock` don't take it because they have no end comment.
+`start` marks a directive that has an end comment, so the pair reads `CMDSYNC region start` … `CMDSYNC end`. `start` alone is short for `region start`, so `<!-- CMDSYNC start: cmd -->` is always a region, even before a code block. `region` alone works too. `line` and `codeblock` don't take `start`, because they have no end comment.
 
 Without a mode, cmdsync infers it: a fenced code block after the directive (in markdown) means `codeblock`, an end comment on the same line means inline, and anything else is a `region`. Naming the mode makes the directive self-explanatory and turns mistakes into clear errors, like "expected a fenced code block" instead of a missing end comment, so prefer it.
 

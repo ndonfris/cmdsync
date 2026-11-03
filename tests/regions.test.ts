@@ -193,14 +193,19 @@ describe('updateRegions: explicit modes', () => {
 });
 
 describe('updateRegions: start/end markers', () => {
-  it('accepts `start` with or without `region`', () => {
+  it('treats `start` alone as `region start`', () => {
     const content = md('<!-- M region start format=md-table: a -->', '<!-- M end -->', '<!-- M start: b -->', '<!-- M end -->');
     assert.deepEqual(findDirectives(content, markdown).map(d => d.options), [
       { mode: 'region', start: true, format: 'md-table' },
-      { start: true },
+      { mode: 'region', start: true },
     ]);
     assert.equal(updateRegions(content.replace('format=md-table ', '').replace(' format=md-table', ''), markdown, echo).content,
       md('<!-- M region start: a -->', 'a', '<!-- M end -->', '<!-- M start: b -->', 'b', '<!-- M end -->'));
+  });
+
+  it('`start` alone is a region even when a fence follows', () => {
+    const input = md('<!-- M start: x -->', '```sh', 'old', '```', '<!-- M end -->');
+    assert.equal(updateRegions(input, markdown, ok('new')).content, md('<!-- M start: x -->', 'new', '<!-- M end -->'));
   });
 
   it('never mistakes an end marker for a start on the same line', () => {

@@ -3,8 +3,17 @@
 Install cmdsync globally to have `cmdsync` on your `PATH` in every repository, including ones that don't use Node. Requires Node.js `>=22.18`.
 
 ```fish
-npm install -g cmdsync   # or: yarn global add cmdsync, pnpm add -g cmdsync, bun add -g cmdsync
-cmdsync --version
+# with npm (also installs the man page: man cmdsync)
+npm install -g cmdsync
+
+# with yarn
+yarn global add cmdsync
+
+# with pnpm
+pnpm add -g cmdsync
+
+# with bun
+bun add -g cmdsync
 ```
 
 A global install runs whatever version you installed last, so for a project that other people (or CI) work on, a [local install](local-install.md) is better: everyone runs the version in the lockfile. Inside a project with a local install, `npx cmdsync` / `yarn cmdsync` run the local one.

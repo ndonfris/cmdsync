@@ -14,6 +14,14 @@ describe('commandBinaries', () => {
       ['my-cli', 'jq', 'echo', 'date', 'fish']);
   });
 
+  it('does not take redirections or arithmetic for commands', () => {
+    assert.deepEqual(commandBinaries('node --version 2>&1'), ['node']);
+    assert.deepEqual(commandBinaries('a >&2; b &>/dev/null; c <&3'), ['a', 'b', 'c']);
+    assert.deepEqual(commandBinaries('echo $((1 + (2 * 3))) | wc -l'), ['echo', 'wc']);
+    assert.deepEqual(commandBinaries('a & b && c'), ['a', 'b', 'c']);
+    assert.deepEqual(unrecognizedBinaries('node --version 2>&1', ['node']), []);
+  });
+
   it('ignores separators inside quotes', () => {
     assert.deepEqual(commandBinaries(`node -p "'[x](' + require('a') + ')' | b" && printf '%s; rm' x | jq`), ['node', 'printf', 'jq']);
     assert.deepEqual(commandBinaries('echo "a \\" | b" | wc'), ['echo', 'wc']);

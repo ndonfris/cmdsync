@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { type ShellSource, currentShell } from './shell.js';
+import { type ShellSource, currentShell } from './shell.ts';
 
 /** Name of the standalone config file, and of the key used inside `package.json` */
 export const CONFIG_FILE = 'cmdsync.json';

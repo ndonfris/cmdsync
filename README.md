@@ -319,7 +319,7 @@ It runs synchronously and must return a string; if it throws, the directive fail
 
 The comment syntax is picked from the file name. Line comments like `#` have no closing delimiter, so in those files the directive runs to the end of its line and regions are block-only.
 
-<!-- CMDSYNC start format=md-table: tsx scripts/syntax-table.ts -->
+<!-- CMDSYNC start format=md-table: node scripts/syntax-table.ts -->
 | Comment        | Markdown | Files |
 | -------------- | -------- | ----- |
 | `<!--` … `-->` | yes      | `.md` `.markdown` |
@@ -385,7 +385,7 @@ Requires Node.js `>=22.18`.
 
 ## CLI
 
-<!-- CMDSYNC codeblock: tsx src/cli.ts --help -->
+<!-- CMDSYNC codeblock: node src/cli.ts --help -->
 ```text
 Usage: cmdsync [update] [options] [paths...]
        cmdsync status [options] [paths...]
@@ -937,20 +937,20 @@ The CLI behaves the same when called directly (annotations included):
 A directive can run any script, so the most reliable docs import the values they describe straight from your source. [`examples/diagnostic-codes`](examples/diagnostic-codes) is a language server whose diagnostics are defined in [`src/error-codes.ts`](examples/diagnostic-codes/src/error-codes.ts):
 
 ```ts
-export namespace ErrorCodes {
-  export const missingEnd = 1001;
+const missingEnd = 1001;
+// ...
+const codes: { [k in CodeTypes]: CodeValueType } = {
+  [missingEnd]: {
+    severity: DiagnosticSeverity.Error,
+    code: missingEnd,
+    codeDescription: { href: 'https://example.com/docs/end' },
+    source: 'my-lsp',
+    message: 'missing closing token',
+  },
   // ...
-  export const codes: { [k in CodeTypes]: CodeValueType } = {
-    [missingEnd]: {
-      severity: DiagnosticSeverity.Error,
-      code: missingEnd,
-      codeDescription: { href: 'https://example.com/docs/end' },
-      source: 'my-lsp',
-      message: 'missing closing token',
-    },
-    // ...
-  };
-}
+};
+
+export const ErrorCodes = { missingEnd, /* ... */ codes };
 ```
 
 A small script imports that module and prints one JSON row per code:
@@ -961,7 +961,7 @@ A small script imports that module and prints one JSON row per code:
  * Prints every diagnostic code from `src/error-codes.ts` as JSON rows, for
  * cmdsync's `format=md-table` / `format=html-table`:
  *
- *   <!-- CMDSYNC start format=md-table: tsx scripts/error-codes.ts --links -->
+ *   <!-- CMDSYNC start format=md-table: node scripts/error-codes.ts --links -->
  *   <!-- CMDSYNC end -->
  *
  * Importing the source (instead of hand-copying its values into the docs)
@@ -999,13 +999,13 @@ console.log(JSON.stringify(rows, null, 2));
 The docs then hold a region with `format=md-table` (or `format=html-table`, for `.mdx`):
 
 ````markdown
-<!-- CMDSYNC start format=md-table: tsx scripts/error-codes.ts --links -->
+<!-- CMDSYNC start format=md-table: node scripts/error-codes.ts --links -->
 <!-- CMDSYNC end -->
 ````
 
 Running `cmdsync` fills it in:
 
-<!-- CMDSYNC start format=md-table: tsx examples/diagnostic-codes/scripts/error-codes.ts --links -->
+<!-- CMDSYNC start format=md-table: node examples/diagnostic-codes/scripts/error-codes.ts --links -->
 | Code                                               | Severity    | Message |
 | -------------------------------------------------- | ----------- | ------- |
 | [`1001`](https://example.com/docs/end)             | Error       | missing closing token |
@@ -1023,7 +1023,7 @@ Add a code to `ErrorCodes.codes` and the next `cmdsync` run adds its row to ever
 
 Notes for your own scripts:
 
-- `tsx` runs TypeScript directly, so nothing has to be built first. List it in [`commands`](#recognized-commands) if you use an allowlist.
+- Node (`>=22.18`) runs a TypeScript script directly, `node scripts/error-codes.ts`, so nothing has to be built first, as long as the script and what it imports only use TypeScript that can be stripped (no `enum` or `namespace`; otherwise run it with [tsx](https://tsx.is)). List `node` in [`commands`](#recognized-commands) if you use an allowlist.
 - Keep the script free of side effects beyond printing: print JSON for the table formats, or the finished markdown/html when you need full control (a non-JSON format, grouping, headings per category).
 - Sort the rows yourself (by code above), so the output, and therefore the diff, is stable.
 - If the source imports runtime packages (a real `error-codes.ts` imports `DiagnosticSeverity` from `vscode-languageserver`), the project's dependencies must be installed wherever cmdsync runs.
@@ -1049,7 +1049,7 @@ Docs in other repositories (B, C) don't have A's source. Two ways to keep their 
    ```
 
    ```markdown
-   <!-- CMDSYNC start format=md-table: npx tsx ../A/scripts/error-codes.ts --links -->
+   <!-- CMDSYNC start format=md-table: node ../A/scripts/error-codes.ts --links -->
    <!-- CMDSYNC end -->
    ```
 
@@ -1212,7 +1212,7 @@ Examples in inline code and fenced code blocks are left alone, and running it ag
 
 ```fish
 yarn install
-yarn test           # node:test via tsx; or only some: yarn test tests/cli.test.ts
+yarn test           # node --test, on the TypeScript source directly; or only some: yarn test tests/cli.test.ts
 yarn test:coverage  # the same, with node's built-in coverage report for src/
 yarn verify         # build, then test (run-s build test); takes test files too
 yarn test:watch     # build + test on every change, with a timestamped ✓/✗ line per run; keys: a all, f failed, p pattern, b build only, t tests only, k typecheck only, o coverage, c clear, h help, q quit (a key mid-run restarts with it); yarn test:watch cli starts with tests matching cli
@@ -1235,7 +1235,7 @@ cmdsync --version
 
 `yarn link` puts the binary in `yarn global bin`, and `npm link` in `npm prefix -g`'s `bin/`, so that directory has to be on your `PATH`. Run `yarn build` (or `npx tsc -p tsconfig.json --watch`) after changing `src/`, since the linked `cmdsync` runs `dist/cli.js`. To use the checkout as a dependency of one project instead, run `yarn link cmdsync` in that project, or install it from the path: `yarn add -D file:../cmdsync`. Undo the global link with `yarn unlink` (or `npm unlink -g cmdsync`) in the checkout.
 
-Without linking, `yarn dev <args>` runs the TypeScript source directly with tsx.
+Without linking, `node src/cli.ts <args>` runs the TypeScript source directly (Node strips the types).
 
 ### Publishing to npm
 

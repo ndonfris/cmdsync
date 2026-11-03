@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
-import { DEFAULT_CONFIG, resolveConfig } from '../src/config.js';
+import { DEFAULT_CONFIG, resolveConfig } from '../src/config.ts';
 
 const fixture = (files: Record<string, unknown>) => {
   const dir = mkdtempSync(join(tmpdir(), 'cmdsync-'));

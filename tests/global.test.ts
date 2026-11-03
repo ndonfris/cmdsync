@@ -1,12 +1,12 @@
-import './setup.js';
+import './setup.ts';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
-import { resolveConfig, resolveConfigSources } from '../src/config.js';
-import { contractHome, globalConfigPath, loadGlobalConfig, selectRepos, validateGlobalConfig } from '../src/global.js';
-import { addRepo, initConfig, initGlobal, removeRepo } from '../src/init.js';
+import { resolveConfig, resolveConfigSources } from '../src/config.ts';
+import { contractHome, globalConfigPath, loadGlobalConfig, selectRepos, validateGlobalConfig } from '../src/global.ts';
+import { addRepo, initConfig, initGlobal, removeRepo } from '../src/init.ts';
 
 const temp = () => mkdtempSync(join(tmpdir(), 'cmdsync-'));
 

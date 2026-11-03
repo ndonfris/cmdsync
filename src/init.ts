@@ -1,8 +1,8 @@
 /** `cmdsync init` (a repository's config) and `cmdsync init global` */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { CONFIG_FILE, DEFAULT_CONFIG, PACKAGE_JSON_KEY, findConfig } from './config.js';
-import { type GlobalConfig, type Repo, expandHome, globalConfigPath, loadGlobalConfig, repoName, saveGlobalConfig } from './global.js';
+import { CONFIG_FILE, DEFAULT_CONFIG, PACKAGE_JSON_KEY, findConfig } from './config.ts';
+import { type GlobalConfig, type Repo, expandHome, globalConfigPath, loadGlobalConfig, repoName, saveGlobalConfig } from './global.ts';
 
 export const SCHEMA_URL = 'https://unpkg.com/cmdsync/cmdsync.schema.json';
 

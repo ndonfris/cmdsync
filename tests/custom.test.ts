@@ -1,13 +1,13 @@
-import './setup.js';
+import './setup.ts';
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
-import { resolveConfig } from '../src/config.js';
-import { customHooks, loadFormatters, renderTemplate } from '../src/custom.js';
-import { run } from '../src/index.js';
-import { updateRegions } from '../src/regions.js';
+import { resolveConfig } from '../src/config.ts';
+import { customHooks, loadFormatters, renderTemplate } from '../src/custom.ts';
+import { run } from '../src/index.ts';
+import { updateRegions } from '../src/regions.ts';
 
 const md = (...lines: string[]) => lines.join('\n');
 
@@ -67,7 +67,7 @@ describe('custom directives', () => {
       shout: { formatter: './shout.mjs', template: '<{output}>' },
       broken: { formatter: './broken.mjs' },
     }, {
-      // a type-only import, so cmdsync's source isn't loaded a second time (outside tsx) by the formatter
+      // a type-only import, which Node strips, so the formatter doesn't load cmdsync's source
       'pretty.ts': `import type { FormatterContext } from ${JSON.stringify(join(import.meta.dirname, '..', 'src', 'custom.ts'))};
         const fence = (text: string, lang: string): string => '\\x60\\x60\\x60' + lang + '\\n' + text.replace(/\\n+$/, '') + '\\n\\x60\\x60\\x60';
         export default (ctx: FormatterContext): string => [fence(ctx.input, ctx.lang ?? 'sh'), '', fence(ctx.output, 'txt')].join('\\n');`,

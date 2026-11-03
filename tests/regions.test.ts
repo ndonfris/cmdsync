@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { findDirectives, includeLines, updateRegions } from '../src/regions.js';
-import type { RegionSyntax } from '../src/syntax.js';
+import { findDirectives, includeLines, updateRegions } from '../src/regions.ts';
+import type { RegionSyntax } from '../src/syntax.ts';
 
 const ok = (output: string) => () => ({ output, status: 0 });
 const echo = (command: string) => ({ output: command, status: 0 });

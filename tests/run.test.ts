@@ -1,12 +1,12 @@
-import './setup.js';
+import './setup.ts';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
-import { resolveConfig } from '../src/config.js';
-import { loadFormatters, run } from '../src/index.js';
-import { commandBinaries, createRunner, onPath, runPostUpdate, unrecognizedBinaries } from '../src/run.js';
+import { resolveConfig } from '../src/config.ts';
+import { loadFormatters, run } from '../src/index.ts';
+import { commandBinaries, createRunner, onPath, runPostUpdate, unrecognizedBinaries } from '../src/run.ts';
 
 describe('commandBinaries', () => {
   it('collects the first word of every command segment', () => {

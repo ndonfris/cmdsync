@@ -4,8 +4,8 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
-import { PATH_LIKE, completionScript } from '../src/completions.js';
-import { OPTIONS, PARSE_OPTIONS, SHELLS } from '../src/options.js';
+import { PATH_LIKE, completionScript } from '../src/completions.ts';
+import { OPTIONS, PARSE_OPTIONS, SHELLS } from '../src/options.ts';
 
 describe('OPTIONS', () => {
   it('matches the options the CLI parses', () => {

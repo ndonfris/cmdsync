@@ -1,5 +1,5 @@
 /** Shell completion scripts for `cmdsync`, generated from the CLI's option table */
-import { type CliOption, OPTIONS, SUBCOMMANDS, type Shell } from './options.js';
+import { type CliOption, OPTIONS, SUBCOMMANDS, type Shell } from './options.ts';
 
 const BIN = 'cmdsync';
 

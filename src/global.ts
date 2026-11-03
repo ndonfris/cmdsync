@@ -7,7 +7,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
-import { type UserConfig, validateConfig } from './config.js';
+import { type UserConfig, validateConfig } from './config.ts';
 
 export const GLOBAL_SCHEMA_URL = 'https://unpkg.com/cmdsync/cmdsync.global.schema.json';
 

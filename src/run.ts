@@ -1,8 +1,8 @@
 import { spawnSync } from 'node:child_process';
 import { accessSync, constants, statSync } from 'node:fs';
 import { basename, delimiter, join, relative, resolve } from 'node:path';
-import type { CommandResult } from './regions.js';
-import type { ResolvedConfig } from './config.js';
+import type { CommandResult } from './regions.ts';
+import type { ResolvedConfig } from './config.ts';
 
 /**
  * Binaries invoked by a shell command line: the first word of every segment

@@ -1212,11 +1212,13 @@ Examples in inline code and fenced code blocks are left alone, and running it ag
 
 ```fish
 yarn install
-yarn test        # node:test via tsx
+yarn test           # node:test via tsx; or only some: yarn test tests/cli.test.ts
 yarn test:coverage  # the same, with node's built-in coverage report for src/
+yarn verify         # build, then test (run-s build test); takes test files too
+yarn test:watch     # build + test on every change, with a timestamped ✓/✗ line per run; keys: a all, f failed, p pattern, b build only, t tests only, k typecheck only, o coverage, c clear, h help, q quit (a key mid-run restarts with it); yarn test:watch cli starts with tests matching cli
 yarn typecheck
-yarn build       # emits dist/
-yarn docs        # regenerate this README's regions with cmdsync itself
+yarn build          # emits dist/
+yarn docs           # regenerate this README's regions with cmdsync itself
 ```
 
 ### Building from source

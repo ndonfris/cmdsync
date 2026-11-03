@@ -54,18 +54,22 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "prepare": "tsc -p tsconfig.json",
-    "dev": "tsx src/cli.ts",
-    "test": "CMDSYNC_SHELL=sh tsx --test tests/*.test.ts",
-    "test:coverage": "CMDSYNC_SHELL=sh node --experimental-test-coverage --test-coverage-include='src/**' --import tsx --test tests/*.test.ts",
+    "prepare": "run-s verify",
+    "watch": "node scripts/watch.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test",
+    "test:coverage": "run-s 'test --experimental-test-coverage --test-coverage-include=src/** {@}' --",
+    "verify": "run-s typecheck build 'test {@}' --",
     "docs": "tsx src/cli.ts",
-    "docs:check": "tsx src/cli.ts --check",
-    "docs:examples": "tsx src/cli.ts --config examples/diagnostic-codes/cmdsync.json && tsx src/cli.ts --config examples/custom-directives/cmdsync.json",
-    "prepublishOnly": "yarn build && yarn test"
+    "docs:check": "run-s 'docs --check'",
+    "docs:examples": "run-s 'docs --config examples/diagnostic-codes/cmdsync.json' 'docs --config examples/custom-directives/cmdsync.json'",
+    "prepublishOnly": "run-s verify",
+    "test:watch": "node scripts/watch.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.17.0",
+    "nodemon": "^3.1.14",
+    "npm-run-all2": "^8.0.4",
     "tsx": "^4.23.1",
     "typescript": "^5.9.3"
   },
@@ -75,5 +79,18 @@
       "**/.git/**",
       "examples/**"
     ]
+  },
+  "nodemonConfig": {
+    "watch": [
+      "cmdsync.schema.json",
+      "cmdsync.global.schema.json",
+      "src",
+      "tests",
+      "examples",
+      "package.json",
+      "tsconfig.json"
+    ],
+    "ext": "ts,mts,mjs,js,json,md,mdx",
+    "delay": 300
   }
 }

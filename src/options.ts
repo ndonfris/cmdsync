@@ -15,6 +15,7 @@ export const OPTIONS: CliOption[] = [
   { long: 'config', short: 'c', value: 'file', description: 'Config file (cmdsync.json or package.json)' },
   { long: 'check', description: "Don't write; exit 1 if any region is out of date" },
   { long: 'dry-run', short: 'n', description: "Don't write; report what would change" },
+  { long: 'diff', short: 'd', description: "Don't write; print a diff of what would change, exit 1 if any" },
   { long: 'staged', description: 'Write, then git add the changed files (for a pre-commit hook)' },
   { long: 'marker', short: 'm', value: 'text', description: 'Start marker (overrides config)' },
   { long: 'end-marker', short: 'e', value: 'text', description: 'End marker (overrides config, default: <marker> end)' },
@@ -30,7 +31,7 @@ export const OPTIONS: CliOption[] = [
 export interface Subcommand {
   name: string;
   description: string;
-  /** Values the first argument completes to */
+  /** Values the first argument completes to; paths and options when empty */
   args: string[];
 }
 
@@ -40,6 +41,7 @@ export type Shell = typeof SHELLS[number];
 export const SUBCOMMANDS: Subcommand[] = [
   { name: 'completions', description: 'Print a shell completion script', args: [...SHELLS] },
   { name: 'hook', description: 'Add cmdsync --staged to the git pre-commit hook', args: ['install'] },
+  { name: 'lint', description: 'Check every directive without running commands, and list where each one is', args: [] },
 ];
 
 /** `parseArgs` options; kept literal so parsed values stay typed, and tested against `OPTIONS` */
@@ -47,6 +49,7 @@ export const PARSE_OPTIONS = {
   config: { type: 'string', short: 'c' },
   check: { type: 'boolean', default: false },
   'dry-run': { type: 'boolean', short: 'n', default: false },
+  diff: { type: 'boolean', short: 'd', default: false },
   staged: { type: 'boolean', default: false },
   marker: { type: 'string', short: 'm' },
   'end-marker': { type: 'string', short: 'e' },

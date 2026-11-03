@@ -1,11 +1,12 @@
 import { globSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { type ResolvedConfig, defaultEndMarker } from './config.js';
 import { type CommandResult, type RegionResult, updateRegions } from './regions.js';
-import { type InstallEvent, type InstallMode, createRunner } from './run.js';
+import { type InstallEvent, type InstallMode, createRunner, rejectUnrecognized } from './run.js';
 import { type CommentSyntax, type RegionSyntax, builtinSyntax } from './syntax.js';
 
 export * from './config.js';
+export * from './diff.js';
 export * from './format.js';
 export * from './git.js';
 export * from './regions.js';
@@ -18,9 +19,13 @@ export interface FileResult {
   changed: boolean;
   /** Written to disk (false in `check`/`dryRun` mode) */
   written: boolean;
-  /** The regenerated content (equal to what's on disk when nothing changed) */
+  /** The file as it was read */
+  original: string;
+  /** The regenerated content (equal to `original` when nothing changed) */
   content: string;
   regions: RegionResult[];
+  /** 0-based lines that mention the marker but aren't a directive or a matched end marker */
+  stray: number[];
 }
 
 const glob = (patterns: string[], cwd: string, exclude: string[] = []) =>
@@ -65,18 +70,36 @@ export function syntaxResolver(config: ResolvedConfig): (file: string) => Region
   };
 }
 
+/** Reads `include=` paths relative to the file with the directive */
+export function includeReader(file: string): (path: string) => CommandResult {
+  return path => {
+    try {
+      return { output: readFileSync(resolve(dirname(file), path), 'utf-8'), status: 0 };
+    } catch (err) {
+      const reason = (err as NodeJS.ErrnoException).code === 'ENOENT' ? 'no such file' : (err as Error).message;
+      return { output: '', status: 1, error: `include ${path}: ${reason}` };
+    }
+  };
+}
+
 export function processFile(
   file: string,
   syntax: RegionSyntax,
-  options: { write: boolean; run: (command: string) => CommandResult; },
+  options: { write: boolean; run: (command: string) => CommandResult; lint?: boolean; },
 ): FileResult {
   const original = readFileSync(file, 'utf-8');
-  if (!original.includes(syntax.marker)) return { file, changed: false, written: false, content: original, regions: [] };
-  const { content, results } = updateRegions(original, syntax, options.run);
+  const unchanged = { file, changed: false, written: false, original, content: original };
+  if (!original.includes(syntax.marker.trim().split(/\s+/)[0]!)) return { ...unchanged, regions: [], stray: [] };
+  const { content, results, stray } = updateRegions(original, syntax, options.run, { read: includeReader(file), lint: options.lint });
+  if (options.lint) return { ...unchanged, regions: results, stray };
   const changed = content !== original;
   if (changed && options.write) writeFileSync(file, content, 'utf-8');
-  return { file, changed, written: changed && options.write, content, regions: results };
+  return { file, changed, written: changed && options.write, original, content, regions: results, stray };
 }
+
+/** A `run` for linting: rejects commands the `commands` allowlist doesn't recognize, without running anything */
+const lintRunner = (config: ResolvedConfig) => (command: string): CommandResult =>
+  rejectUnrecognized(command, config) ?? { output: '', status: 0 };
 
 export function run(
   config: ResolvedConfig,
@@ -84,21 +107,23 @@ export function run(
     paths?: string[];
     write?: boolean;
     install?: InstallMode;
+    /** Validate every directive without running commands or writing (see `UpdateOptions.lint`) */
+    lint?: boolean;
     onFile?: (result: FileResult) => void;
     onInstall?: (event: InstallEvent) => void;
   } = {},
 ): FileResult[] {
   const syntaxFor = syntaxResolver(config);
-  const runner = createRunner(config, { install: options.install, onInstall: options.onInstall });
+  const runner = options.lint ? lintRunner(config) : createRunner(config, { install: options.install, onInstall: options.onInstall });
   return collectFiles(config, options.paths)
     .map(file => {
       const syntax = syntaxFor(file);
       if (!syntax) {
         throw new Error(`No comment syntax known for ${displayPath(file, config.root)}: add a "syntax" rule to the config or pass --comment`);
       }
-      return processFile(file, syntax, { write: options.write ?? true, run: runner });
+      return processFile(file, syntax, { write: !options.lint && (options.write ?? true), run: runner, lint: options.lint });
     })
-    .filter(result => result.regions.length > 0)
+    .filter(result => result.regions.length > 0 || result.stray.length > 0)
     .map(result => (options.onFile?.(result), result));
 }
 

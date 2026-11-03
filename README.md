@@ -40,6 +40,8 @@ Without a mode, cmdsync infers it: a fenced code block after the directive (in m
 
 `format=md-table` or `format=html-table` renders the command's output as a [table](#tables).
 
+`include=path` [takes the content from a file](#including-files) instead of a command: `<!-- CMDSYNC start include=src/example.ts#L10-L20 -->`.
+
 ### region
 
 Every line between the start and end comment is replaced. The output is indented to match the start comment, so regions also work inside yaml and nested lists. `start` and `region start` are the same:
@@ -116,6 +118,22 @@ A region whose start and end comment are on the same line: the text between them
 ```html
 <p>Latest release: <span class="version"><!-- CMDSYNC start: my-cli --version -->1.2.3<!-- CMDSYNC end --></span></p>
 ```
+
+### Including files
+
+`include=` in place of `: command` takes the content from a file instead of running something. The path is relative to the file the directive is in, and `#L10-L20` (or `#L10`, `#L10-` for the rest of the file) picks a range of lines. A range is dedented, so a snippet from inside a function starts at column 0.
+
+````markdown
+<!-- CMDSYNC codeblock lang=ts include=../src/example.ts#L10-L20 -->
+```ts
+lines 10 to 20 of src/example.ts
+```
+
+<!-- CMDSYNC start include=../CONTRIBUTING.md -->
+<!-- CMDSYNC end -->
+````
+
+It works with every mode, and with `format=` (`include=codes.json format=md-table`) and `lang=`. Includes don't run anything, so they don't need to be in [`commands`](#recognized-commands). A missing file, or a range past the end of it, fails the directive and leaves its content as it was.
 
 ### Tables
 
@@ -243,6 +261,7 @@ Requires Node.js `>=22.17`.
 <!-- CMDSYNC codeblock: tsx src/cli.ts --help -->
 ```text
 Usage: cmdsync [options] [paths...]
+       cmdsync lint [options] [paths...]
        cmdsync completions <bash|zsh|fish|nu>
        cmdsync hook install
 
@@ -261,6 +280,11 @@ Arguments:
                            (default: the config's "include" globs)
 
 Commands:
+  lint [paths...]          Check every directive without running commands or
+                           writing, and list where each one is: invalid
+                           options, missing end markers or includes, commands
+                           outside "commands", stray markers (exit 1), and
+                           binaries that aren't on PATH (warning)
   completions <shell>      Print a completion script for bash, zsh, fish or nu
   hook install             Add `cmdsync --staged` to the git pre-commit hook
                            (prints the line to add if a hook already exists)
@@ -269,6 +293,8 @@ Options:
   -c, --config <file>      Config file (cmdsync.json or package.json)
       --check              Don't write; exit 1 if any region is out of date
   -n, --dry-run            Don't write; report what would change
+  -d, --diff               Don't write; print a unified diff of what would
+                           change, and exit 1 if anything is out of date
       --staged             Write, then `git add` the files that changed; refuses
                            files with unstaged changes (for a pre-commit hook)
   -m, --marker <name>      Start marker (overrides config)
@@ -286,6 +312,7 @@ Options:
   -v, --version            Show version
 
 Directives: <!-- CMDSYNC [mode] [start] [format=...] [lang=...]: cmd -->
+            <!-- CMDSYNC [mode] [start] [...] include=path[#L1-L9] -->
   region     replace every line up to <!-- CMDSYNC end -->
              (`start` is short for `region start`; on one line: inline)
   line       replace the next line (output must be one line)
@@ -294,18 +321,20 @@ Directives: <!-- CMDSYNC [mode] [start] [format=...] [lang=...]: cmd -->
   (none)     codeblock if a fence follows in markdown, inline if the end
              marker is on the same line, else region
   format=md-table|html-table  render a JSON array printed by cmd as a table
+  include=path#L10-L20        content from a file (relative to this one)
+                              instead of a command; a line range is dedented
 
 Config is read from the nearest cmdsync.json, or the "cmdsync" key of
 the nearest package.json.
 
 Exit codes: 0 success, 1 failed command, invalid directive or out of date
-region (--check), 2 usage error
+region (--check, --diff), 2 usage error
 ```
 
 | Exit code | Meaning |
 | --- | --- |
-| `0` | Everything succeeded (and, with `--check`, every region is up to date) |
-| `1` | A command failed, a directive is invalid (unterminated region, unknown option), or `--check` found an out of date region |
+| `0` | Everything succeeded (and, with `--check` or `--diff`, every region is up to date) |
+| `1` | A command failed, a directive is invalid (unterminated region, unknown option), `--check`/`--diff` found an out of date region, or `lint` found an error |
 | `2` | Usage or config error |
 
 Typical `package.json` scripts:
@@ -318,6 +347,49 @@ Typical `package.json` scripts:
   }
 }
 ```
+
+### Seeing what would change
+
+`--diff` doesn't write anything: it prints a unified diff of every file that's out of date, and exits 1 if there are any, so it's `--check` with the details. It's colored in a terminal (unless `NO_COLOR` is set), and plain when piped, so `cmdsync --diff > docs.patch` gives a patch you can `git apply`.
+
+```diff
+--- a/README.md
++++ b/README.md
+@@ -8,3 +8,3 @@
+ <!-- CMDSYNC start: my-cli --version -->
+-1.2.3
++1.3.0
+ <!-- CMDSYNC end -->
+```
+
+### Linting directives
+
+`cmdsync lint [paths...]` checks every directive without running a command or writing a file, and lists where each one is, with the line range it covers and the mode it resolved to:
+
+```text
+✗ docs/guide.md
+    ok       docs/guide.md:4-9  region     my-cli --help
+    ok       docs/guide.md:12-16  codeblock  include=../src/example.ts#L10-L20
+    warning docs/guide.md:12  my-cli: not on PATH, and no "install" command for it
+    invalid  docs/guide.md:20             echo hi
+            unknown mode "strat" (expected region, line, codeblock)
+    failed   docs/guide.md:24  region     include=missing.md
+            include missing.md: no such file
+    stray    docs/guide.md:30  <!-- CMDSYNC end -->
+            mentions CMDSYNC, but isn't a directive or an end marker that closes one
+
+1 file(s), 4 directive(s), 3 error(s), 1 warning(s)
+```
+
+Errors (exit 1):
+
+- **invalid**: an unknown mode or option, a missing end marker or code block, `start` on a `line` directive, ...
+- **failed**: a command outside the [`commands`](#recognized-commands) allowlist, or an `include=` file or line range that doesn't exist
+- **stray**: a comment that mentions the marker but isn't a directive or an end marker that closes one, like a leftover `<!-- CMDSYNC end -->` or a typo such as `<!-- CMDSYNC strat: cmd -->` (examples in inline code or fenced code blocks don't count)
+
+Warnings: a command's binary isn't on `PATH`, and there's no [`install`](#installing-binaries) command for it.
+
+It's quick and has no side effects, so it suits an editor task or the first step of CI, before the commands' tools are installed.
 
 ### Shell completions
 
@@ -600,7 +672,7 @@ export namespace ErrorCodes {
 
 A small script imports that module and prints one JSON row per code:
 
-<!-- CMDSYNC codeblock: cat examples/diagnostic-codes/scripts/error-codes.ts -->
+<!-- CMDSYNC codeblock lang=ts include=examples/diagnostic-codes/scripts/error-codes.ts -->
 ```ts
 /**
  * Prints every diagnostic code from `src/error-codes.ts` as JSON rows, for
@@ -783,10 +855,16 @@ Repositories are updated in parallel (a matrix with `fail-fast: false`), so one 
 ## API
 
 ```ts
-import { resolveConfig, run, updateRegions } from 'cmdsync';
+import { resolveConfig, run, unifiedDiff, updateRegions } from 'cmdsync';
 
 // whole run, the same as the CLI
 const results = run(resolveConfig({ cwd: process.cwd() }), { write: false });
+
+// `cmdsync lint`: each file's results say what every directive resolved to, and which lines are stray
+const linted = run(resolveConfig({ cwd: process.cwd() }), { lint: true });
+
+// `--diff`
+const patch = results.map(r => unifiedDiff(r.original, r.content, { path: r.file })).join('');
 
 // pure transform with your own command runner
 const syntax = { open: '<!--', close: '-->', fences: true, marker: 'CMDSYNC', endMarker: 'CMDSYNC end' };

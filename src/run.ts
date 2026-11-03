@@ -24,6 +24,16 @@ export function unrecognizedBinaries(command: string, allowed: string[]): string
   return commandBinaries(command).filter(bin => !known.has(bin));
 }
 
+/** POSIX shell builtins, which are never on PATH */
+const BUILTINS = new Set(['.', ':', '[', 'alias', 'cd', 'command', 'echo', 'eval', 'exec', 'exit', 'export', 'false', 'printf', 'read', 'set', 'shift', 'source', 'test', 'true', 'type', 'unset']);
+
+/** Binaries in `command` that aren't on PATH and have no `install` command to get them */
+export function missingBinaries(command: string, config: ResolvedConfig): string[] {
+  const env = { ...process.env, ...config.env };
+  return [...new Set(commandBinaries(command))]
+    .filter(bin => !BUILTINS.has(bin) && !config.install[bin] && !onPath(bin, env, config.cwd));
+}
+
 /** Run `command` with the config's shell, cwd, env and timeout */
 function spawn(command: string, config: ResolvedConfig, timeout = config.timeout): CommandResult {
   const { stdout, stderr, status, error } = spawnSync(config.shell, ['-c', command], {
@@ -38,16 +48,19 @@ function spawn(command: string, config: ResolvedConfig, timeout = config.timeout
   return { output: status === 0 ? stdout : (stderr || stdout), status: status ?? 1 };
 }
 
-export function runCommand(command: string, config: ResolvedConfig): CommandResult {
+/** The failed result for a command the `commands` allowlist rejects, or undefined when it's allowed */
+export function rejectUnrecognized(command: string, config: ResolvedConfig): CommandResult | undefined {
   const rejected = unrecognizedBinaries(command, config.commands);
-  if (rejected.length > 0) {
-    return {
-      output: '',
-      status: 1,
-      error: `unrecognized command(s): ${rejected.join(', ')} (allowed: ${config.commands.join(', ')})`,
-    };
-  }
-  return spawn(command, config);
+  if (rejected.length === 0) return undefined;
+  return {
+    output: '',
+    status: 1,
+    error: `unrecognized command(s): ${rejected.join(', ')} (allowed: ${config.commands.join(', ')})`,
+  };
+}
+
+export function runCommand(command: string, config: ResolvedConfig): CommandResult {
+  return rejectUnrecognized(command, config) ?? spawn(command, config);
 }
 
 /** Whether `bin` is an executable on `PATH` (or, when it contains a `/`, relative to `cwd`) */
@@ -111,8 +124,8 @@ export function createRunner(
   };
 
   return command => {
-    const rejected = unrecognizedBinaries(command, config.commands);
-    if (rejected.length > 0) return runCommand(command, config);
+    const rejected = rejectUnrecognized(command, config);
+    if (rejected) return rejected;
     for (const bin of new Set(commandBinaries(command))) {
       const result = install(bin);
       if (result && (result.status !== 0 || result.error)) {

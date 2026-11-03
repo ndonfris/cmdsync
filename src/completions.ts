@@ -8,9 +8,12 @@ const flags = (o: CliOption) => [...o.short ? [`-${o.short}`] : [], `--${o.long}
 
 const single = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
 
+/** Subcommands whose argument is one of a fixed set of values; the rest take paths and options */
+const VALUED = SUBCOMMANDS.filter(s => s.args.length > 0);
+
 function bash(): string {
   const valued = (kind: CliOption['value']) => OPTIONS.filter(o => o.value === kind).flatMap(flags).join('|');
-  const subcommands = SUBCOMMANDS.map(s => [
+  const subcommands = VALUED.map(s => [
     `  if [[ $COMP_CWORD -eq 2 && \${COMP_WORDS[1]} == ${s.name} ]]; then`,
     `    COMPREPLY=($(compgen -W ${single(s.args.join(' '))} -- "$cur"))`,
     '    return',
@@ -53,7 +56,7 @@ function zsh(): string {
       : names.map(n => `'${repeat}${n}[${escape(o.description)}]${action(o)}'`).join(' \\\n    ');
     return [spec, ...o.negatable ? [`'--no-${o.long}[${escape(`Opposite of --${o.long}`)}]'`] : []];
   });
-  const subcommandCases = SUBCOMMANDS.map(s => `    ${s.name}) (( CURRENT == 3 )) && _values ${single(s.name)} ${s.args.join(' ')}; return ;;`);
+  const subcommandCases = VALUED.map(s => `    ${s.name}) (( CURRENT == 3 )) && _values ${single(s.name)} ${s.args.join(' ')}; return ;;`);
   return `\
 #compdef ${BIN}
 # zsh completion for ${BIN}: save as _${BIN} in your $fpath, or eval "$(${BIN} completions zsh)"
@@ -83,10 +86,10 @@ fi
 function fish(): string {
   const lines = [
     `# fish completion for ${BIN}: ${BIN} completions fish > ~/.config/fish/completions/${BIN}.fish`,
-    `complete -c ${BIN} -n '__fish_seen_subcommand_from ${SUBCOMMANDS.map(s => s.name).join(' ')}' -f`,
+    `complete -c ${BIN} -n '__fish_seen_subcommand_from ${VALUED.map(s => s.name).join(' ')}' -f`,
     ...SUBCOMMANDS.flatMap(s => [
       `complete -c ${BIN} -n __fish_use_subcommand -a ${s.name} -d ${single(s.description)}`,
-      `complete -c ${BIN} -n '__fish_seen_subcommand_from ${s.name}' -a ${single(s.args.join(' '))}`,
+      ...s.args.length ? [`complete -c ${BIN} -n '__fish_seen_subcommand_from ${s.name}' -a ${single(s.args.join(' '))}`] : [],
     ]),
     ...OPTIONS.flatMap(o => {
       const names = `${o.short ? `-s ${o.short} ` : ''}-l ${o.long}`;
@@ -108,13 +111,21 @@ function nu(): string {
     `  ${flag(o).padEnd(width)}  # ${o.description}`,
     ...o.negatable ? [`  ${`--no-${o.long}`.padEnd(width)}  # Opposite of --${o.long}`] : [],
   ]);
-  const subcommands = SUBCOMMANDS.flatMap(s => [
+  const paths = `  ${'...paths: path'.padEnd(width)}  # Files or directories to process`;
+  const subcommands = SUBCOMMANDS.flatMap(s => s.args.length ? [
     '',
     `def "nu-complete ${BIN} ${s.name}" [] { [${s.args.map(a => `"${a}"`).join(' ')}] }`,
     '',
     `# ${s.description}`,
     `export extern "${BIN} ${s.name}" [`,
     `  arg: string@"nu-complete ${BIN} ${s.name}"`,
+    ']',
+  ] : [
+    '',
+    `# ${s.description}`,
+    `export extern "${BIN} ${s.name}" [`,
+    paths,
+    ...options,
     ']',
   ]);
   return `\
@@ -123,7 +134,7 @@ function nu(): string {
 #   then add \`use completions/${BIN}.nu *\` to your config.nu
 
 export extern "${BIN}" [
-  ${'...paths: path'.padEnd(width)}  # Files or directories to process
+${paths}
 ${options.join('\n')}
 ]
 ${subcommands.join('\n')}

@@ -49,6 +49,22 @@ describe('run', () => {
     assert.equal(readFileSync(join(dir, 'app.conf'), 'utf-8'), '; GEN: echo conf\nconf\n; END\n');
   });
 
+  it('reads include= paths relative to the file with the directive', () => {
+    const dir = project({ 'src/a.ts': 'one\ntwo\n', 'docs/page.md': '<!-- CMDSYNC start include=../src/a.ts#L2 -->\n<!-- CMDSYNC end -->\n' });
+    run(resolveConfig({ cwd: dir }));
+    assert.equal(readFileSync(join(dir, 'docs/page.md'), 'utf-8'), '<!-- CMDSYNC start include=../src/a.ts#L2 -->\ntwo\n<!-- CMDSYNC end -->\n');
+  });
+
+  it('lints without running commands or writing, and checks the allowlist', () => {
+    const page = '<!-- CMDSYNC start: touch ran -->\n<!-- CMDSYNC end -->\n<!-- CMDSYNC start: echo ok -->\nold\n<!-- CMDSYNC end -->\n<!-- CMDSYNC end -->\n';
+    const dir = project({ 'page.md': page }, { commands: ['echo'] });
+    const [result] = run(resolveConfig({ cwd: dir }), { lint: true });
+    assert.equal(readFileSync(join(dir, 'page.md'), 'utf-8'), page);
+    assert.deepEqual(result?.regions.map(r => r.kind), ['failed', 'updated']);
+    assert.deepEqual(result?.stray, [5]);
+    assert.equal(result?.changed, false);
+  });
+
   it('uses --comment for every file and errors on unknown file types', () => {
     const dir = project({ 'notes.txt': '// CMDSYNC: echo hi\nold\n// CMDSYNC end\n' }, { include: ['*.txt'] });
     assert.throws(() => run(resolveConfig({ cwd: dir })), /No comment syntax known for notes\.txt/);

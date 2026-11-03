@@ -61,7 +61,7 @@
     "build:dist": "tsc -p tsconfig.json",
     "build:man": "node scripts/man.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --test",
+    "test": "node --test --test-reporter=./tests/reporter.mjs --test-reporter-destination=stdout",
     "test:coverage": "run-s 'test --experimental-test-coverage --test-coverage-include=src/** {@}' --",
     "watch": "node scripts/watch.mjs",
     "verify": "run-s typecheck build 'test {@}' --",

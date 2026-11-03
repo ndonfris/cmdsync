@@ -1202,6 +1202,7 @@ Examples in inline code and fenced code blocks are left alone, and running it ag
 ```fish
 yarn install
 yarn test        # node:test via tsx
+yarn test:coverage  # the same, with node's built-in coverage report for src/
 yarn typecheck
 yarn build       # emits dist/
 yarn docs        # regenerate this README's regions with cmdsync itself

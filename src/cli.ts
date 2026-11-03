@@ -21,7 +21,7 @@ Usage: cmdsync [update] [options] [paths...]
        cmdsync lint [options] [paths...]
        cmdsync init [--package-json] | init global [--add]
        cmdsync repos [list | add [path] | remove <name>]
-       cmdsync migrate [--dry-run | --diff]
+       cmdsync migrate [--from <marker>...] [--dry-run | --diff]
        cmdsync completions <bash|zsh|fish|nu>
        cmdsync hook install
 
@@ -60,7 +60,9 @@ Commands:
   migrate                  Convert an update-codeblocks config and directives,
                            and directives in older cmdsync syntax (/CMDSYNC,
                            CMDSYNC[format=x]:), to the current syntax
-                           (--dry-run: only list, --diff: show the changes)
+                           (--dry-run: only list, --diff: show the changes);
+                           --from <marker> also converts another marker's
+                           directives (<!-- DOCS: cmd -->), repeatable
   completions <shell>      Print a completion script for bash, zsh, fish or nu
   hook install             Add \`cmdsync --staged\` to the git pre-commit hook
                            (prints the line to add if a hook already exists)
@@ -336,11 +338,12 @@ function migrate(args: string[]): number {
       'dry-run': { type: 'boolean', short: 'n', default: false },
       diff: { type: 'boolean', short: 'd', default: false },
       quiet: { type: 'boolean', short: 'q', default: false },
+      from: { type: 'string', short: 'f', multiple: true },
     },
   });
   const log = (...msg: unknown[]) => values.quiet || console.log(...msg);
   const root = gitRootOrCwd();
-  const plan = planMigration(root);
+  const plan = planMigration(root, { from: values.from });
   const write = !values['dry-run'] && !values.diff;
   const color = process.stdout.isTTY && !process.env.NO_COLOR;
   if (plan.files.length === 0 && plan.notes.length === 0) {

@@ -5,6 +5,9 @@
  *   <!-- UPDATE_CODEBLOCK: cmd --> + a fenced block   →  <!-- CMDSYNC codeblock: cmd -->
  *   <!-- CMDSYNC[format=x]: cmd --> ... <!-- /CMDSYNC -->  →  <!-- CMDSYNC start format=x: cmd --> ... <!-- CMDSYNC end -->
  *   <!-- CMDSYNC: cmd --> + a fenced block / an end marker  →  `codeblock` / `start`, so the mode is explicit
+ *
+ * `from` adds markers of other tools (or your own), converted the same way:
+ * `<!-- DOCS: cmd -->` + a fenced block, or `<!-- DOCS: cmd -->` ... `<!-- /DOCS -->`.
  */
 import { existsSync, globSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -167,7 +170,10 @@ const indentOf = (text: string) => text.match(/^[ \t]+(?=")/m)?.[0] ?? '  ';
  * the config (renamed, legacy marker dropped), `package.json` scripts, GitHub workflows,
  * and directives in every included file.
  */
-export function planMigration(root: string): MigrationPlan {
+export function planMigration(root: string, options: { from?: string[]; } = {}): MigrationPlan {
+  for (const marker of options.from ?? []) {
+    if (!/^[\w.-]+$/.test(marker)) throw new Error(`invalid marker "${marker}" (letters, digits, \`_\`, \`.\` and \`-\`)`);
+  }
   const files: FileMigration[] = [];
   const notes: string[] = [];
   const pkgFile = join(root, 'package.json');
@@ -242,7 +248,7 @@ export function planMigration(root: string): MigrationPlan {
   const marker = current && hasCurrent ? resolveConfig({ cwd: root }).marker : DEFAULT_CONFIG.marker;
   const config = resolveConfig({ cwd: root, overrides: legacy ? { ...legacy, marker } : {} });
   const explicitEnd = hasCurrent && current!.config.endMarker !== undefined;
-  const from = [...new Set([...legacy ? [legacy.marker ?? LEGACY_MARKER] : [], marker])];
+  const from = [...new Set([...legacy ? [legacy.marker ?? LEGACY_MARKER] : [], ...options.from ?? [], marker])];
   const migration = { from, marker, endMarker: explicitEnd ? config.endMarker : defaultEndMarker(marker) };
   const syntaxFor = syntaxResolver(config);
   for (const file of collectFiles(config)) {

@@ -143,6 +143,15 @@
       },
       "default": {},
       "description": "Extra environment variables passed to every command"
+    },
+    "postUpdate": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "default": [],
+      "description": "Commands run in order after an update wrote at least one file. Same shell, cwd and env as directives, plus CMDSYNC_CHANGED_FILES (written files, one per line, relative to the config root)."
     }
   }
 }

@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
 import { resolveConfig } from '../src/config.js';
 import { run } from '../src/index.js';
-import { commandBinaries, createRunner, onPath, unrecognizedBinaries } from '../src/run.js';
+import { commandBinaries, createRunner, onPath, runPostUpdate, unrecognizedBinaries } from '../src/run.js';
 
 describe('commandBinaries', () => {
   it('collects the first word of every command segment', () => {
@@ -70,6 +70,25 @@ describe('run', () => {
     assert.throws(() => run(resolveConfig({ cwd: dir })), /No comment syntax known for notes\.txt/);
     run(resolveConfig({ cwd: dir, overrides: { comment: ['//'] } }));
     assert.equal(readFileSync(join(dir, 'notes.txt'), 'utf-8'), '// CMDSYNC: echo hi\nhi\n// CMDSYNC end\n');
+  });
+});
+
+describe('runPostUpdate', () => {
+  it('runs each command with the changed files, and stops at the first failure', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cmdsync-'));
+    writeFileSync(join(dir, 'cmdsync.json'), JSON.stringify({
+      postUpdate: ['printf "%s" "$CMDSYNC_CHANGED_FILES" > changed.txt', 'exit 3', 'touch never'],
+    }));
+    const config = resolveConfig({ cwd: dir });
+    const events = runPostUpdate(config, [join(dir, 'a.md'), join(dir, 'docs/b.md')]);
+    assert.deepEqual(events.map(e => [e.command, e.result.status]), [[config.postUpdate[0], 0], ['exit 3', 3]]);
+    assert.equal(readFileSync(join(dir, 'changed.txt'), 'utf-8'), 'a.md\ndocs/b.md');
+  });
+
+  it('rejects empty commands in the config', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cmdsync-'));
+    writeFileSync(join(dir, 'cmdsync.json'), JSON.stringify({ postUpdate: [' '] }));
+    assert.throws(() => resolveConfig({ cwd: dir }), /invalid value for "postUpdate"/);
   });
 });
 

@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { accessSync, constants, statSync } from 'node:fs';
-import { basename, delimiter, join, resolve } from 'node:path';
+import { basename, delimiter, join, relative, resolve } from 'node:path';
 import type { CommandResult } from './regions.js';
 import type { ResolvedConfig } from './config.js';
 
@@ -35,10 +35,10 @@ export function missingBinaries(command: string, config: ResolvedConfig): string
 }
 
 /** Run `command` with the config's shell, cwd, env and timeout */
-function spawn(command: string, config: ResolvedConfig, timeout = config.timeout): CommandResult {
+function spawn(command: string, config: ResolvedConfig, timeout = config.timeout, env: Record<string, string> = {}): CommandResult {
   const { stdout, stderr, status, error } = spawnSync(config.shell, ['-c', command], {
     cwd: config.cwd,
-    env: { ...process.env, ...config.env },
+    env: { ...process.env, ...config.env, ...env },
     encoding: 'utf-8',
     timeout,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -134,4 +134,25 @@ export function createRunner(
     }
     return spawn(command, config);
   };
+}
+
+export interface PostUpdateEvent {
+  command: string;
+  result: CommandResult;
+}
+
+/**
+ * Run the config's `postUpdate` commands in order, stopping at the first that
+ * fails. `changed` (absolute paths) is passed as `CMDSYNC_CHANGED_FILES`.
+ * Like installs, they get `INSTALL_TIMEOUT`, since formatters and builds can be slow.
+ */
+export function runPostUpdate(config: ResolvedConfig, changed: string[]): PostUpdateEvent[] {
+  const env = { CMDSYNC_CHANGED_FILES: changed.map(f => relative(config.root, f)).join('\n') };
+  const events: PostUpdateEvent[] = [];
+  for (const command of config.postUpdate) {
+    const result = spawn(command, config, INSTALL_TIMEOUT, env);
+    events.push({ command, result });
+    if (result.status !== 0 || result.error) break;
+  }
+  return events;
 }

@@ -30,42 +30,6 @@ Running `cmdsync` executes each command and replaces **only the content the comm
 
 - **Catch stale content in your workflow.** Use `cmdsync check` in [CI](docs/configuration.md), regenerate with a [pre-commit](docs/git-hooks.md) hook, or open downstream update PRs when you release via [Github Actions](docs/github-actions.md).
 
-<!-- ### Option 2: Capability table -->
-<!---->
-<!-- | Capability | Details | -->
-<!-- | --- | --- | -->
-<!-- | **Update content inside existing files.** | Target a region, code block, line, or inline value in md, mdx, html, yaml, source code, or any file with comments. Surrounding content stays intact ([directives](docs/directives.md)). | -->
-<!-- | **Keep examples tied to their source.** | Capture real command output, show a command alongside its result, or include a file or selected lines directly ([includes](docs/directives.md#including-files)). | -->
-<!-- | **Turn output into readable docs.** | Render JSON as Markdown or HTML tables, or define reusable templates and JavaScript/TypeScript formatters ([tables](docs/directives.md#tables), [custom directives](docs/custom-directives.md)). | -->
-<!-- | **Review changes before applying them.** | Preview a diff with `cmdsync status` or approve changes individually with `cmdsync -i`. Unchanged output leaves files untouched; failed commands preserve their existing content ([CLI](docs/cli.md)). | -->
-<!-- | **Catch stale content in your workflow.** | Use `cmdsync check` in CI, regenerate with a pre-commit hook, or open downstream update PRs when you release ([git hooks](docs/git-hooks.md), [GitHub Actions](docs/github-actions.md)). | -->
-<!-- | **Highly customizable and configurable.** | Use a local config in your project, a global config for all your repositories, or a combination of both. Specify which commands are allowed, how to install missing binaries, run post-update commands, and more ([configuration](docs/configuration.md)). | -->
-<!---->
-<!-- ### Option 3: Grouped sections -->
-<!---->
-<!-- #### Sources and placement -->
-<!---->
-<!-- - **Update content inside existing files.** Target a region, code block, line, or inline value in md, -->
-<!--   mdx, html, yaml, source code, or any file with comments. Surrounding content stays intact ([directives](docs/directives.md)). -->
-<!-- - **Keep examples tied to their source.** Capture real command output, show a command alongside its -->
-<!--   result, or include a file or selected lines directly ([includes](docs/directives.md#including-files)). -->
-<!---->
-<!-- #### Formatting and configuration -->
-<!---->
-<!-- - **Turn output into readable docs.** Render JSON as Markdown or HTML tables, or define reusable -->
-<!--   templates and JavaScript/TypeScript formatters ([tables](docs/directives.md#tables), [custom directives](docs/custom-directives.md)). -->
-<!-- - **Highly customizable and configurable.** Use a local config in your project, a global config for -->
-<!--   all your repositories, or a combination of both. Specify which commands are allowed, how to install -->
-<!--   missing binaries, run post-update commands, and more ([configuration](docs/configuration.md)). -->
-<!---->
-<!-- #### Review and automation -->
-<!---->
-<!-- - **Review changes before applying them.** Preview a diff with `cmdsync status` or approve changes -->
-<!--   individually with `cmdsync -i`. Unchanged output leaves files untouched; failed commands preserve -->
-<!--   their existing content ([CLI](docs/cli.md)). -->
-<!-- - **Catch stale content in your workflow.** Use `cmdsync check` in CI, regenerate with a pre-commit -->
-<!--   hook, or open downstream update PRs when you release ([git hooks](docs/git-hooks.md), [GitHub Actions](docs/github-actions.md)). -->
-<!---->
 ## Usage
 
 <!-- CMDSYNC ignore start -->
@@ -73,6 +37,8 @@ Running `cmdsync` executes each command and replaces **only the content the comm
 <details open>
 <summary><b><ins>Basic example</ins></b></summary>
 
+> <br />
+>
 > Install `cmdsync` in your project:
 >
 > ```sh
@@ -112,6 +78,8 @@ Running `cmdsync` executes each command and replaces **only the content the comm
 <details>
 <summary><b><ins>Update an inline value</ins></b></summary>
 
+> <br />
+>
 > Keep a value inside a sentence up to date by putting both comments on the same line:
 >
 > ```markdown
@@ -125,15 +93,34 @@ Running `cmdsync` executes each command and replaces **only the content the comm
 <details>
 <summary><b><ins>Fill a codeblock from command output</ins></b></summary>
 
-> `codeblock` updates the fenced block without an end comment; with `lang=ts`, it can also create the block if none exists.
+> <br />
+>
+> `codeblock` directive updates the fenced block without an end comment.
 >
 > ````markdown
-> <!-- CMDSYNC codeblock lang=txt: node --version -->
+> <!-- CMDSYNC codeblock: node --version -->
 > ```txt
 > ```
 > ````
 >
 > After running `npx cmdsync`, the block is filled with the command output:
+>
+> ````markdown
+> <!-- CMDSYNC codeblock: node --version -->
+> ```txt
+> v22.18.0
+> ```
+> ````
+>
+> <br />
+>
+> <ins>NOTE:</ins> It can also create the block if none exists, using `lang=TYPE`
+>
+> ````markdown
+> <!-- CMDSYNC codeblock lang=txt: node --version -->
+> ````
+>
+> After running `npx cmdsync`, the block is created and filled with the command output:
 >
 > ````markdown
 > <!-- CMDSYNC codeblock lang=txt: node --version -->
@@ -147,6 +134,8 @@ Running `cmdsync` executes each command and replaces **only the content the comm
 <details>
 <summary><b><ins>Include a source example</ins></b></summary>
 
+> <br />
+>
 > Keep a code block in sync with a file:
 >
 > ````markdown
@@ -159,17 +148,6 @@ Running `cmdsync` executes each command and replaces **only the content the comm
 > Paths are relative to the document containing the directive.
 
 </details>
-
-<!-- <details> -->
-<!-- <summary><b><ins>Review and check changes</ins></b></summary> -->
-<!---->
-<!-- > ```sh -->
-<!-- > npx cmdsync status   # Preview changes without writing -->
-<!-- > npx cmdsync -i       # Approve changes individually -->
-<!-- > npx cmdsync check    # Exit with an error if generated content is stale -->
-<!-- > ``` -->
-<!---->
-<!-- </details> -->
 
 *For more examples, visit:*
 

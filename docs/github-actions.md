@@ -11,7 +11,7 @@ When `GITHUB_ACTIONS=true`, the CLI also:
 The action builds the CLI from source, so it doesn't need an npm release. Install whatever your directives run (and `shell`) before it. With `"shell": "auto"` (the default) it runs directives' commands in `sh`; set `CMDSYNC_SHELL` in the workflow's `env` for another shell.
 
 ```yaml
-- uses: actions/setup-node@v4
+- uses: actions/setup-node@v7
   with:
     node-version: 22
 - run: yarn install --frozen-lockfile && yarn build   # makes `my-cli` available (or use the `install` config)
@@ -52,8 +52,8 @@ jobs:
   cmdsync:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - run: yarn install --frozen-lockfile

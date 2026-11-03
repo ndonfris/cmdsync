@@ -36,12 +36,11 @@ jobs:
       # directives' commands run in sh in CI, whatever shell `"shell": "auto"` would find
       CMDSYNC_SHELL: sh
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
-          registry-url: https://registry.npmjs.org
           cache: yarn
 
       # trusted publishing needs npm >= 11.5.1, newer than what node 22 ships with
@@ -64,6 +63,13 @@ jobs:
       - run: yarn test
       - run: yarn docs:check
       - run: yarn build
+
+      # only now point npm at the registry: the .npmrc this writes reads ${NODE_AUTH_TOKEN},
+      # which only the publish step sets, and yarn 1 fails on an unset variable in .npmrc
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
 
       - name: Publish
         env:

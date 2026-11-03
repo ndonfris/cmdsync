@@ -92,7 +92,8 @@ Options:
   -e, --end-marker <name>  End marker (overrides config, default: "<marker> end")
       --comment <delims>   Comment delimiters for every file, e.g. '#' or '/* */'
                            (overrides config and the built-in syntax table)
-  -s, --shell <bin>        Shell used to run commands (overrides config)
+  -s, --shell <bin>        Shell used to run commands (overrides config); \`auto\`
+                           (the default): the shell cmdsync was started from
       --command <bin>      Allowed command binary, repeatable (overrides config)
       --install            Run the config's "install" command for every binary
                            a directive uses, even if it's already on PATH
@@ -354,7 +355,7 @@ function showResolved(values: Values, overrides: UserConfig): number {
   const dim = (text: string) => process.stdout.isTTY && !process.env.NO_COLOR ? `\x1b[2m${text}\x1b[0m` : text;
   const label = (layer: ConfigLayer) => dim(`// ${layer}`);
 
-  const { source: _, root, ...rest } = config;
+  const { source: _, root, shellFrom: _shellFrom, ...rest } = config;
   const keys = Object.keys(rest) as (keyof typeof rest)[];
   const lines = ['{'];
   keys.forEach((key, i) => {
@@ -376,7 +377,8 @@ function showResolved(values: Values, overrides: UserConfig): number {
     }
     // cwd is resolved against the config's directory, so it's shown absolute
     const layer = key === 'cwd' ? (sources.cwd as ConfigLayer | undefined) ?? 'default' : (source as ConfigLayer | undefined) ?? 'default';
-    lines.push(`  ${JSON.stringify(key)}: ${JSON.stringify(value)}${comma}  ${label(layer)}`);
+    const auto = key === 'shell' && config.shellFrom ? dim(` (auto: ${config.shellFrom})`) : '';
+    lines.push(`  ${JSON.stringify(key)}: ${JSON.stringify(value)}${comma}  ${label(layer)}${auto}`);
   });
   lines.push('}');
   console.log(lines.join('\n'));
@@ -628,7 +630,7 @@ async function runIn(config: ReturnType<typeof resolveConfig>, values: Values, p
   let blocked = 0;
 
   log(`config: ${config.source ?? '(defaults)'}`);
-  log(`markers: ${config.marker} … ${config.endMarker}  shell: ${config.shell}${config.commands.length ? `  commands: ${config.commands.join(', ')}` : ''}${values.verbose ? '' : '\n'}`);
+  log(`markers: ${config.marker} … ${config.endMarker}  shell: ${config.shell}${config.shellFrom ? ` (auto: ${config.shellFrom})` : ''}${config.commands.length ? `  commands: ${config.commands.join(', ')}` : ''}${values.verbose ? '' : '\n'}`);
   verbose(`root: ${config.root}  cwd: ${config.cwd}  timeout: ${config.timeout}ms`);
   verbose(`include: ${config.include.join(' ')}  exclude: ${config.exclude.join(' ')}`);
   if (Object.keys(config.env).length) verbose(`env: ${Object.keys(config.env).join(', ')}`);

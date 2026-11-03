@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { type ShellSource, currentShell } from './shell.js';
 
 /** Name of the standalone config file, and of the key used inside `package.json` */
 export const CONFIG_FILE = 'cmdsync.json';
@@ -49,7 +50,10 @@ export interface UserConfig {
   marker?: string;
   /** End of a region: `<!-- END_MARKER -->` (default: marker + ` end`) */
   endMarker?: string;
-  /** Shell binary used to run each command (`sh`, `bash`, `fish`, `/usr/bin/fish`, ...) */
+  /**
+   * Shell binary used to run each command (`sh`, `bash`, `fish`, `/usr/bin/fish`, ...), or `auto`
+   * (the default): the shell cmdsync was started from (see `detectShell`)
+   */
   shell?: string;
   /**
    * Command binaries that directives are allowed to run. Every command in a
@@ -93,11 +97,13 @@ export interface ResolvedConfig extends Required<Omit<UserConfig, 'comment'>> {
   root: string;
   /** Where the config came from, or `null` when only defaults are used */
   source: string | null;
+  /** How `shell` was found, when it was `auto` */
+  shellFrom?: ShellSource;
 }
 
 export const DEFAULT_CONFIG = {
   marker: 'CMDSYNC',
-  shell: 'sh',
+  shell: 'auto',
   commands: [],
   install: {},
   include: ['**/*.md', '**/*.mdx'],
@@ -310,10 +316,12 @@ export function resolveConfigSources(options: ResolveOptions = {}): {
   sources.endMarker ??= sources.marker as ConfigLayer;
   sources.comment ??= 'default';
 
+  const auto = merged.shell === 'auto' ? currentShell() : undefined;
   return {
     config: {
       ...DEFAULT_CONFIG,
       ...merged,
+      ...auto && { shell: auto.shell, shellFrom: auto.from },
       endMarker: merged.endMarker ?? defaultEndMarker(merged.marker ?? DEFAULT_CONFIG.marker),
       comment: merged.comment ?? null,
       cwd: resolve(root, merged.cwd ?? DEFAULT_CONFIG.cwd),

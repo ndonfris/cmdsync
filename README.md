@@ -460,7 +460,8 @@ Options:
   -e, --end-marker <name>  End marker (overrides config, default: "<marker> end")
       --comment <delims>   Comment delimiters for every file, e.g. '#' or '/* */'
                            (overrides config and the built-in syntax table)
-  -s, --shell <bin>        Shell used to run commands (overrides config)
+  -s, --shell <bin>        Shell used to run commands (overrides config); `auto`
+                           (the default): the shell cmdsync was started from
       --command <bin>      Allowed command binary, repeatable (overrides config)
       --install            Run the config's "install" command for every binary
                            a directive uses, even if it's already on PATH
@@ -626,7 +627,7 @@ When both exist in the same directory, `cmdsync.json` wins. Relative paths (`inc
 | --- | --- | --- | --- |
 | `marker` | `string` | `"CMDSYNC"` | Starts a directive: `<!-- MARKER start: command -->` |
 | `endMarker` | `string` | `marker + " end"` | End of a region: `<!-- MARKER end -->` |
-| `shell` | `string` | `"sh"` | Shell binary that runs each command as `<shell> -c "<command>"`: `bash`, `fish`, `/usr/bin/zsh`, ... |
+| `shell` | `string` | `"auto"` | Shell binary that runs each command as `<shell> -c "<command>"`: `bash`, `fish`, `/usr/bin/zsh`, ..., or `auto`, the shell cmdsync was started from (see [the shell](#the-shell)) |
 | `commands` | `string[]` | `[]` (anything) | Command binaries directives are allowed to run (see below) |
 | `install` | `Record<string, string>` | `{}` | [How to install a binary](#installing-binaries) directives run, keyed by binary name |
 | `include` | `string[]` | `["**/*.md", "**/*.mdx"]` | Globs of files to scan |
@@ -716,6 +717,14 @@ The allowlist protects against typos and against commands you didn't expect to s
 - `--install` runs the install for every binary a directive uses, even ones already on `PATH`. Use it to pin a version in CI.
 - `--no-install` never installs anything.
 - Binaries are matched the same way as [`commands`](#recognized-commands): the first word of each pipeline/list segment, by basename.
+
+### The shell
+
+By default (`"shell": "auto"`) commands run in the shell you started cmdsync from: run it from fish and `<!-- CMDSYNC start: string upper hi -->` works, from bash it's bash. cmdsync walks up its parent processes to the first interactive shell, so the `sh -c` that `npx`/`yarn` and git hooks put in between doesn't count. Without an interactive shell (in CI, say) it takes the nearest shell, then `$SHELL`, then `sh`. A run prints which one, `shell: /usr/bin/fish (auto: parent)`, and so does `cmdsync --show --resolved`.
+
+`CMDSYNC_SHELL=bash cmdsync` overrides the detection for a run (or a terminal, exported), and `-s`/`--shell` or a `shell` in a config pins it outright.
+
+Commands written for one shell can mean something else in another (`$(...)`, `string`, `set`), so when a project's directives need a particular shell, set `"shell"` in its config: then contributors and CI all regenerate the same output. `auto` is best left to your [global `defaults`](#multiple-repositories), or projects whose commands are plain enough for any shell.
 
 ### Post-update commands
 
